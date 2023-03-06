@@ -2,6 +2,7 @@ import os
 import psutil
 import platform
 import datetime
+from queue import LifoQueue
 
 # GET DIRECTORY SIZE NEEDS OPTIMIZED
 
@@ -40,6 +41,9 @@ def get_dir_size(path):
 
 def get_dir_tree(startpath):
     dirTree = []
+    dirTreeCount = -1
+    folderIndex = LifoQueue()
+    parent = -1
 
     # Walk through disk to get items
     for root, dirs, files in os.walk(startpath):
@@ -50,6 +54,20 @@ def get_dir_tree(startpath):
         # Get folder level
         level = root.replace(startpath, "").count(os.sep)
 
+        # Get folder parent
+        if level == 0:
+            while not folderIndex.empty():
+                parent = folderIndex.get()
+            parent = -1
+        elif level > 0:
+            if level > dirTree[parent]["level"]:
+                folderIndex.put(parent)
+            elif level == dirTree[parent]["level"]:
+                parent = folderIndex.get()
+            else:
+                while level <= dirTree[parent]["level"]:
+                    parent = folderIndex.get()
+
         # Get folder creation time
         crTime = get_creation_date(root)
         dateCreated = datetime.datetime.fromtimestamp(crTime).strftime("%Y-%m-%d")
@@ -58,6 +76,7 @@ def get_dir_tree(startpath):
         # Add folder to directory tree
         folder = {
             "type": "folder",
+            "parent": parent,
             "path": root,
             "level": level,
             "name": os.path.basename(root),
@@ -70,7 +89,11 @@ def get_dir_tree(startpath):
             "timeCreated": timeCreated,
             "size": 0
         }  
-        dirTree.append(folder)      
+        dirTree.append(folder) 
+        dirTreeCount += 1 
+
+        # Assign this folder to parent        
+        parent = dirTreeCount 
 
         # Get files in folder
         level += 1
@@ -86,6 +109,7 @@ def get_dir_tree(startpath):
             # Add file to directory tree
             fileDict = {
                 "type": "file",
+                "parent": parent,
                 "path": filePath,
                 "level": level,
                 "name": f,
@@ -99,6 +123,7 @@ def get_dir_tree(startpath):
                 "size": os.path.getsize(filePath)
             }
             dirTree.append(fileDict)
+            dirTreeCount += 1
 
     # Update directory size     *** NOT OPTIMIZED ***
     for item in dirTree:
