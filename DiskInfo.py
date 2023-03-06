@@ -59,11 +59,9 @@ def get_dir_tree(startpath):
             while not folderIndex.empty():
                 parent = folderIndex.get()
             parent = -1
-        elif level > 0:
+        else:
             if level > dirTree[parent]["level"]:
                 folderIndex.put(parent)
-            elif level == dirTree[parent]["level"]:
-                parent = folderIndex.get()
             else:
                 while level <= dirTree[parent]["level"]:
                     parent = folderIndex.get()
@@ -142,7 +140,7 @@ def print_disk_partitions(diskPartitions):
 def print_dir_tree(tree):
     for item in tree:
         indent = " " * 4 * (item["level"])
-        print("{}{}".format(indent, item["name"]))
+        print("{}{}".format(indent, item["name"]), item["parent"])
 
 # Get disk partitions
 diskPartitions = get_disk_partitions()
