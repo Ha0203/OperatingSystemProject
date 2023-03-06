@@ -143,9 +143,9 @@ def print_dir_tree(tree):
         print("{}{}".format(indent, item["name"]), item["parent"])
 
 # Get disk partitions
-diskPartitions = get_disk_partitions()
-print_disk_partitions(diskPartitions)
+# diskPartitions = get_disk_partitions()
+# print_disk_partitions(diskPartitions)
 
 # Create directory tree of partition E:\
-diskHierarchy = get_dir_tree("E:\\")    # E:\\ is name of the partition 
-print_dir_tree(diskHierarchy)
+# diskHierarchy = get_dir_tree("E:\\")    # E:\\ is name of the partition 
+# print_dir_tree(diskHierarchy)
