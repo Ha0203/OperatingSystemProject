@@ -4,6 +4,8 @@ import platform
 import datetime
 from queue import LifoQueue
 
+# CAN NOT USE LIBRARY :)
+
 # GET DIRECTORY SIZE NEEDS OPTIMIZED
 
 def get_disk_partitions():
