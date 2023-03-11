@@ -12,6 +12,8 @@ def GetUSBDrive():
 
 # Read Physical Drive
 def ReadPhysicalDrive(driveName, sectorBytes):
+    partitions = []
+
     with open(driveName, "rb") as drive:
         # Read Master Boot Record
         MBR = drive.read(sectorBytes)
@@ -39,13 +41,23 @@ def ReadPhysicalDrive(driveName, sectorBytes):
             # 7 = 0x07 (NTFS)
             if MBRPart["Type"] == 7:
                 NTFSHierarchy = ReadNTFSPartition(driveName, sectorBytes, MBRPart["LBABegin"])
+                partition = {
+                    "Format": "NTFS",
+                    "Hierarchy": NTFSHierarchy
+                }
+                partitions.append(partition)
             # 12 = 0x0C (FAT32)
             elif MBRPart["Type"] == 12:
                 FAT32Hierarchy = ReadFAT32Partition(driveName, sectorBytes, MBRPart["LBABegin"])
-                for item in FAT32Hierarchy:
-                    PrintFAT32Item(item["content"])
+                partition = {
+                    "Format": "FAT32",
+                    "Hierarchy": FAT32Hierarchy
+                }
+                partitions.append(partition)
             else:
                 print("Unknown parition type") 
+    
+    return partitions
 
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
@@ -58,6 +70,7 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
 # Read FAT32 partition
 def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
     diskHierarchy = []
+    diskHierarchyCount = -1
 
     with open(driveName, "rb") as drive:
         drive.seek(LBAbegin * 32 * 16)
@@ -73,7 +86,6 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
             "FATType": bootSector[int("52", 16) : int("52", 16) + 8],
         }
 
-        RDETItems = []
         RDETSectorBegin = LBAbegin + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"]
         drive.seek(RDETSectorBegin * 32 * 16)
         while(True):            
@@ -116,111 +128,29 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                         "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                         "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
                     }
-                    RDETItems.append(entry)
                     item = {
-                        "parent": -1,
-                        "content": entry
+                        "Parent": -1,
+                        "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
+                        "Name": entry["Name"] if entry["Name"] != "" else entry["PrimaryName"] + entry["ExtendedName"],
+                        "Attributes": entry["Attributes"],
+                        "TimeCreated": entry["TimeCreated"],
+                        "DateCreated": entry["DateCreated"],
+                        "Size": entry["Size"],
                     }
                     diskHierarchy.append(item)
-                    if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
-                        if "System" in entry["Attributes"]:
-                            continue                        
-                        data = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, -1)            
+                    diskHierarchyCount += 1
+                    if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:                
+                        diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)            
             else:
                 continue
             break
 
     return diskHierarchy
 
-# Read FAT32 boot sector
-def ReadFAT32BootSector(driveName, sectorBytes, LBAbegin):
-    bootSectorInfo = {}
-
-    with open(driveName, "rb") as drive:
-        drive.seek(LBAbegin * 32 * 16)
-        bootSector = drive.read(sectorBytes)
-
-        bootSectorInfo = {
-            "SectorBytes": int.from_bytes(bootSector[int("0B", 16) : int("0B", 16) + 2], "little"),
-            "ClusterSectors": bootSector[int("0D", 16)],
-            "SectorsBeforeFAT": int.from_bytes(bootSector[int("0E", 16) : int("0E", 16) + 2], "little"),
-            "FATTables": bootSector[int("10", 16)],
-            "VolumeSectors": int.from_bytes(bootSector[int("20", 16) : int("20", 16) + 4], "little"),
-            "FATSectors": int.from_bytes(bootSector[int("24", 16) : int("24", 16) + 4], "little"),
-            "RDETClusterBegin": int.from_bytes(bootSector[int("2C", 16) : int("2C", 16) + 4], "little"),
-            "FATType": bootSector[int("52", 16) : int("52", 16) + 8],
-        }
-
-    return bootSectorInfo
-
-# Read FAT32 RDET
-def ReadFAT32RDET(driveName, sectorBytes, sectorBegin, diskHierarchy, bootSectorInfo):
-    RDETItems = []
-    with open(driveName, "rb") as drive:
-        drive.seek(sectorBegin * 32 * 16)
-        while(True):            
-            RDET = drive.read(sectorBytes)
-            entryQueue = LifoQueue()
-
-            # Entry size is 32B
-            for i in range(0, sectorBytes, 32):
-                # Break the read while loop
-                if RDET[i] == 0:
-                    break
-                # Skip if deleted
-                if RDET[i] == 229: # 229 = 0xE5
-                    continue            
-                if RDET[i + int("0B", 16)] == 15: # 15 = 0x0F
-                # Sub entry
-                    subEntry = {
-                        "Name1": RDET[i + int("01", 16) : i + int("01", 16) + 10].decode("utf-16"),
-                        "Name2": RDET[i + int("0E", 16) : i + int("0E", 16) + 12].decode("utf-16"),
-                        "Name3": RDET[i + int("1C", 16) : i + int("1C", 16) + 4].decode("utf-16")
-                    }
-                    entryQueue.put(subEntry)
-                else:
-                # Entry
-                    # Get entry full name
-                    entryName = ""
-                    while not entryQueue.empty():
-                        subEntry = entryQueue.get()
-                        for j in range(1, 4):
-                            entryName += subEntry["Name" + str(j)]
-                    entryName = entryName[:entryName.find("\x00")]
-
-                    entry = {
-                        "Name": entryName,
-                        "PrimaryName": RDET[i : i + 8].decode("utf-8"),
-                        "ExtendedName": RDET[i + int("08", 16) : i + int("08", 16) + 3].decode("utf-8"),
-                        "Attributes": GetFAT32FileAttributes("{0:08b}".format(RDET[i + int("0B", 16)])),
-                        "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in RDET[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
-                        "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
-                        "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
-                        "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
-                    }
-                    RDETItems.append(entry)
-                    item = {
-                        "parent": -1,
-                        "content": entry
-                    }
-                    diskHierarchy.append(item)
-                    print(entry)
-                    if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
-                        if "System" in entry["Attributes"]:
-                            continue                        
-                        data = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, sectorBegin, sectorBegin + (entry["ClusterBegin"] - bootSectorInfo["RDETClusterBegin"]) * bootSectorInfo["ClusterSectors"], diskHierarchy, -1)
-                        
-            else:
-                continue
-            break
-    
-    return RDETItems
-
 # Read FAT32 Data
-def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clusterBegin, diskHierarchy, parent):
+def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clusterBegin, diskHierarchy, parent, diskHierarchyCount):
     sectorBegin = RDETSectorBegin + (clusterBegin - bootSectorInfo["RDETClusterBegin"]) * bootSectorInfo["ClusterSectors"]
-    dataItems = []
-
+    
     with open(driveName, "rb") as drive:
         drive.seek(sectorBegin * 32 * 16)
 
@@ -261,18 +191,21 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
                     "ClusterBegin": int.from_bytes(data[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                     "Size": int.from_bytes(data[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
                 }
-                dataItems.append(entry)
                 item = {
-                    "parent": -1,
-                    "content": entry
+                    "Parent": parent,
+                    "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
+                    "Name": entry["Name"] if entry["Name"] != "" else entry["PrimaryName"] + entry["ExtendedName"],
+                    "Attributes": entry["Attributes"],
+                    "TimeCreated": entry["TimeCreated"],
+                    "DateCreated": entry["DateCreated"],
+                    "Size": entry["Size"],
                 }
                 diskHierarchy.append(item)
+                diskHierarchyCount += 1
                 if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
-                    if "System" in entry["Attributes"]:
-                        continue          
-                    dataList = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, -1)
+                    diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)
 
-    return dataItems
+    return diskHierarchyCount
 
 # Get FAT32 file attributes
 def GetFAT32FileAttributes(bitArray):
@@ -311,7 +244,7 @@ def GetFAT32FileDateCreated(bitArray):
 # Print FAT32 item
 def PrintFAT32Item(item):
     print("{")
-    print("    Name:", item["Name"] if item["Name"] != "" else item["PrimaryName"] + item["ExtendedName"])
+    print("    Name:", item["Name"])
     print("    Attributes:", item["Attributes"])
     print("    Date Created:", item["DateCreated"])
     print("    Time Created:", item["TimeCreated"])
@@ -327,7 +260,6 @@ def PrintSectorBytes(sector):
         if (i % 16 == 15):
             print("\n")
 
-# Test functions
+# Main
 USBDrives = GetUSBDrive()
-
-ReadPhysicalDrive(USBDrives[0].name, USBDrives[0].BytesperSector)
+diskPartitions = ReadPhysicalDrive(USBDrives[0].name, USBDrives[0].BytesperSector)
