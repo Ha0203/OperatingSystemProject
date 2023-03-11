@@ -38,22 +38,34 @@ def ReadPhysicalDrive(driveName, sectorBytes):
         for MBRPart in MBRInfo:
             # 7 = 0x07 (NTFS)
             if MBRPart["Type"] == 7:
-                ReadNTFSPartition(driveName, sectorBytes, MBRPart["LBABegin"])
+                NTFSHierarchy = ReadNTFSPartition(driveName, sectorBytes, MBRPart["LBABegin"])
             # 12 = 0x0C (FAT32)
             elif MBRPart["Type"] == 12:
-                bootSectorInfo = ReadFAT32BootSector(driveName, sectorBytes, MBRPart["LBABegin"])
-                RDETItems = ReadFAT32RDET(driveName, sectorBytes, MBRPart["LBABegin"] + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"])
-                
-                for item in RDETItems:
-                    PrintFAT32Item(item)
+                FAT32Hierarchy = ReadFaT32Partition(driveName, sectorBytes, MBRPart["LBABegin"])
             else:
                 print("Unknown parition type") 
 
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
+    diskHierarchy = []
+
     print("Can't read NTFS now!")
 
+    return diskHierarchy
+
 # Read FAT32 partition
+def ReadFaT32Partition(driveName, sectorBytes, LBAbegin):
+    diskHierarchy = []
+
+    bootSectorInfo = ReadFAT32BootSector(driveName, sectorBytes, LBAbegin)
+    RDETItems = ReadFAT32RDET(driveName, sectorBytes, LBAbegin + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"])
+    
+    for item in RDETItems:
+        PrintFAT32Item(item)
+    
+    return diskHierarchy
+
+# Read FAT32 boot sector
 def ReadFAT32BootSector(driveName, sectorBytes, LBAbegin):
     bootSectorInfo = {}
 
