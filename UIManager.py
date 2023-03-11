@@ -1,12 +1,8 @@
 from tkinter import *
 from tkinter import ttk
-import DiskInfo
+import DiskManager
 
-# Get disk partitions
-# diskPartitions = get_disk_partitions()
-
-# Get directory tree of partition E:\\
-diskHierarchy = DiskInfo.get_dir_tree("E:\\")
+diskHierarchy = []
 
 # GUI window
 window = Tk()

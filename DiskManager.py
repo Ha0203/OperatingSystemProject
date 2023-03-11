@@ -1,21 +1,6 @@
 import wmi
 from queue import LifoQueue
 
-# # Mở ổ đĩa
-# drive = r"\\.\PhysicalDrive0"  # Thay đổi số tương ứng với ổ đĩa cần đọc
-# with open(drive, "rb") as f:
-
-#     # Đọc boot sector
-#     boot_sector = f.read(512)
-
-#     # Hiển thị nội dung boot sector dưới dạng hex
-#     i = -1
-#     for byte in boot_sector:
-#         print("{:02x} ".format(byte), end="")
-#         i+=1
-#         if (i % 16 == 15):
-#             print("\n")
-
 # Get USB physical drives
 def GetUSBDrive():
     c = wmi.WMI()
@@ -184,6 +169,15 @@ def PrintFAT32Item(item):
     print("    Time Created:", item["TimeCreated"])
     print("    Size:", item["Size"])
     print("}")
+
+# Show sector content as hex
+def PrintSectorBytes(sector):    
+    i = -1
+    for byte in sector:
+        print("{:02x} ".format(byte), end="")
+        i+=1
+        if (i % 16 == 15):
+            print("\n")
 
 # Test functions
 USBDrives = GetUSBDrive()
