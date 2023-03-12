@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import ttk
 import DiskManager
 
+# Data
 diskPartitions = DiskManager.diskPartitions
 diskHierarchy = []
 for partition in diskPartitions:
