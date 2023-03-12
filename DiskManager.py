@@ -62,8 +62,19 @@ def ReadPhysicalDrive(driveName, sectorBytes):
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
     diskHierarchy = []
-
-    print("Can't read NTFS now!")
+    with open(driveName, "rb") as drive:
+        drive.seek(LBAbegin * 512)
+        volumeBootRecord = drive.read(sectorBytes)
+        volumeBootRecordInfo={
+            "BytePerSector": int.from_bytes(volumeBootRecord[int("0B", 16) : int("0B", 16) + 2], "little"),
+            "SectorPerCluster": volumeBootRecord[int("0D", 16)],
+            "SectorPerTrack": int.from_bytes(volumeBootRecord[int("18", 16) : int("18", 16) + 2], "little"),
+            "Head": int.from_bytes(volumeBootRecord[int("1A", 16) : int("1A", 16) + 2], "little"),
+            "TotalSectors": int.from_bytes(volumeBootRecord[int("28", 16) : int("28", 16) + 8], "little"),
+            "MFTStartCluster": int.from_bytes(volumeBootRecord[int("30", 16) : int("30", 16) + 8], "little"),
+            "MFTStartClusterSecondary": int.from_bytes(volumeBootRecord[int("38", 16) : int("38", 16) + 8], "little"),
+            "BytePerEntryMFT": volumeBootRecord[int("40", 16)],
+        }
 
     return diskHierarchy
 
