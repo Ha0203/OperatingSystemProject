@@ -78,9 +78,12 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
             "TotalSectors": int.from_bytes(volumeBootRecord[int("28", 16) : int("28", 16) + 8], "little"),
             "MFTStartCluster": int.from_bytes(volumeBootRecord[int("30", 16) : int("30", 16) + 8], "little"),
             "MFTStartClusterSecondary": int.from_bytes(volumeBootRecord[int("38", 16) : int("38", 16) + 8], "little"),
-            "BytePerEntryMFT": volumeBootRecord[int("40", 16)],
+            "BytePerEntryMFT": pow(2,abs(twos_complement_to_integer("".join(format(byte, '08b') for byte in volumeBootRecord[int("40", 16) : int("40", 16) + 1][::-1])))),
         }
-
+        MFTSectorBegin = LBAbegin + volumeBootRecordInfo["MFTStartCluster"] * volumeBootRecordInfo["SectorPerCluster"]
+        drive.seek(MFTSectorBegin * sectorBytes)
+        # bytes = b'\x24\x00\x4D\x00'
+        # print(bytes.decode("utf-16"))
     return diskHierarchy
 
 # Read FAT32 partition
@@ -282,6 +285,16 @@ def PrintSectorBytes(sector):
         i+=1
         if (i % 16 == 15):
             print("\n")
+
+#Convert two complement to integer
+def twos_complement_to_integer(s):
+    negative = (s[0] == '1')
+    
+    if negative:
+        s = ''.join(['0' if c == '1' else '1' for c in s])
+        s = bin(int(s, 2) + 1)[2:]
+        
+    return int('-' + s if negative else s, 2)
 
 # Main
 USBDrives = GetUSBDrive()
