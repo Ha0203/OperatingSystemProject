@@ -104,9 +104,10 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
 
         RDETSectorBegin = LBAbegin + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"]
         drive.seek(RDETSectorBegin * sectorBytes)
-        while(True):            
-            RDET = drive.read(sectorBytes)
-            entryQueue = LifoQueue()
+        entryQueue = LifoQueue()
+
+        for n in range(0, bootSectorInfo["ClusterSectors"]):            
+            RDET = drive.read(sectorBytes)            
 
             # Entry size is 32B
             for i in range(0, sectorBytes, 32):
@@ -168,12 +169,12 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
     sectorBegin = RDETSectorBegin + (clusterBegin - bootSectorInfo["RDETClusterBegin"]) * bootSectorInfo["ClusterSectors"]
     
     with open(driveName, "rb") as drive:
-        drive.seek(sectorBegin * sectorBytes)           
+        drive.seek(sectorBegin * sectorBytes)     
+        entryQueue = LifoQueue()       
 
         # Read in a cluster
         for n in range(0, bootSectorInfo["ClusterSectors"]):
-            data = drive.read(sectorBytes) 
-            entryQueue = LifoQueue()  
+            data = drive.read(sectorBytes)             
 
             for i in range(0, sectorBytes, 32):
                 # Break the read for loop
