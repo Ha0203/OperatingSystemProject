@@ -1,5 +1,8 @@
 import wmi
 from queue import LifoQueue
+from datetime import datetime
+import datetime
+
 
 # Get USB physical drives
 def GetUSBDrive():
@@ -67,9 +70,12 @@ def ReadPhysicalDrive(driveName, sectorBytes):
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
     diskHierarchy = []
+    diskHierarchyCount = -1
+    
     with open(driveName, "rb") as drive:
         drive.seek(LBAbegin * 512)
         volumeBootRecord = drive.read(sectorBytes)
+        #Read NTFS Volume boot record
         volumeBootRecordInfo={
             "BytePerSector": int.from_bytes(volumeBootRecord[int("0B", 16) : int("0B", 16) + 2], "little"),
             "SectorPerCluster": volumeBootRecord[int("0D", 16)],
@@ -80,11 +86,99 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
             "MFTStartClusterSecondary": int.from_bytes(volumeBootRecord[int("38", 16) : int("38", 16) + 8], "little"),
             "BytePerEntryMFT": pow(2,abs(twos_complement_to_integer("".join(format(byte, '08b') for byte in volumeBootRecord[int("40", 16) : int("40", 16) + 1][::-1])))),
         }
+        
         MFTSectorBegin = LBAbegin + volumeBootRecordInfo["MFTStartCluster"] * volumeBootRecordInfo["SectorPerCluster"]
-        drive.seek(MFTSectorBegin * sectorBytes)
-        # bytes = b'\x24\x00\x4D\x00'
-        # print(bytes.decode("utf-16"))
+        
+        #Read NTFS MFT
+        
+        n = MFTSectorBegin * sectorBytes #Variable to run through every MFT entries
+        
+        while True: #Loop read each entry
+            drive.seek(n)
+            MFTEntry = drive.read(volumeBootRecordInfo["BytePerEntryMFT"])
+            
+            MFTEntryHeaderInfo={
+                "Signal": MFTEntry[int("00", 16) : int("00", 16) + 4].decode("utf-8"),
+                "FirstAtt": int.from_bytes(MFTEntry[int("14", 16) : int("14", 16) + 2], "little"),
+                "State": int.from_bytes(MFTEntry[int("16", 16) : int("16", 16) + 2], "little"),
+                "BytesUsed": int.from_bytes(MFTEntry[int("18", 16) : int("18", 16) + 4], "little"),
+                "Bytes": int.from_bytes(MFTEntry[int("1C", 16) : int("1C", 16) + 4], "little"),
+                "ID": int.from_bytes(MFTEntry[int("2C", 16) : int("2C", 16) + 4], "little"),
+            }
+            if MFTEntryHeaderInfo["Signal"] != "FILE" and MFTEntryHeaderInfo["Signal"] != "BAAD":
+                break
+            if MFTEntryHeaderInfo["State"] == 0 or MFTEntryHeaderInfo["State"] == 2: #Ignore deleted folder/file
+                n += volumeBootRecordInfo["BytePerEntryMFT"] #Move to the next entry
+                continue
+            
+            i = MFTEntryHeaderInfo["FirstAtt"] #Variable to run through every attributes in MFT entry
+            
+            #while loop
+            item={
+                    "Parent": -1,
+                    "ID": MFTEntryHeaderInfo["ID"],
+                    "Type": "",
+                    "Name": "",
+                    "Attributes": "",
+                    "TimeCreated": "",
+                    "DateCreated": "",
+                    "Size": "",
+                }
+            filesize = 0
+            while True:
+                drive.seek(n + i)
+                print(n)
+                print(i)
+                AttHeader = drive.read(sectorBytes)
+                print(n)
+                print(i)
+                AttributeHeaderInfo={
+                    "Type": int.from_bytes(AttHeader[int("00", 16) : int("00",16) + 4], "little"),
+                    "Size": int.from_bytes(AttHeader[int("04", 16) : int("04",16) + 4], "little"),
+                    "IsNonRes": AttHeader[int("08", 16)],
+                    "SizeContent": int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little"),
+                    "PosContent": int.from_bytes(AttHeader[int("14", 16) : int("14",16) + 2], "little"),
+                }
+                if AttributeHeaderInfo["Type"] == 16 or AttributeHeaderInfo["Type"] == 48:
+                    drive.seek(n + i + AttributeHeaderInfo["PosContent"])
+                    AttContent = drive.read(AttributeHeaderInfo["SizeContent"])
+                
+                if AttributeHeaderInfo["Type"] == 16: #Attribute Standard Information 0x0010
+                    item["TimeCreated"] = GetNTFSFileTimeCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
+                    item["DateCreated"] = GetNTFSFileDateCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
+                    
+                if AttributeHeaderInfo["Type"] == 48: #Attribute File Name 0x0030
+                    item["Parent"] = int.from_bytes(AttContent[int("00", 16) : int("00",16) + 6], "little")
+                    lengthName = AttContent[int("40", 16)]
+                    item["Name"] = AttContent[int("42", 16) : int("42",16) + lengthName * 2].decode("utf-16")
+                    item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in AttContent[int("38", 16) : int("38",16) + 4][::-1])),
+                
+                elif AttributeHeaderInfo["Type"] == 128: #Attribute Data 0x0080
+                    if AttributeHeaderInfo["IsNonRes"] == 0:
+                        filesize += int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little")
+                    if AttributeHeaderInfo["IsNonRes"] == 1:
+                        filesize += int.from_bytes(AttHeader[int("28", 16) : int("28",16) + 8], "little")
+                elif AttributeHeaderInfo["Type"] == 4294967295: #Attribute End 0xFFFF
+                    break
+                i += AttributeHeaderInfo["Size"]
+            if "Directory" in item["Attributes"]:
+                item["Type"] = "Folder"
+            else:
+                item["Type"] = "File"
+            item["Size"] = filesize
+            print(item)
+            #Test
+            
+            
+            if MFTEntryHeaderInfo["ID"] == 11:
+                n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to $Quota entry
+            elif MFTEntryHeaderInfo["ID"] == 26:
+                n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to user's entry
+            else: 
+                n += volumeBootRecordInfo["BytePerEntryMFT"]
+            
     return diskHierarchy
+
 
 # Read FAT32 partition
 def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
@@ -233,6 +327,44 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
 
     return diskHierarchyCount
 
+# Get NTFS file Date created
+def GetNTFSFileDateCreated(ticks):
+    date_start = '1601-01-01 00:00:00'
+    date_fromstr = datetime.datetime.strptime(date_start, '%Y-%m-%d %H:%M:%S')
+    converted_ticks = date_fromstr + datetime.timedelta(microseconds = ticks/10)
+    return{
+        "Year": converted_ticks.strftime("%Y"),
+        "Month": converted_ticks.strftime("%m"),
+        "Day": converted_ticks.strftime("%d"),
+    }
+
+# Get NTFS file time created
+def GetNTFSFileTimeCreated(ticks):
+    date_start = '1601-01-01 00:00:00'
+    date_fromstr = datetime.datetime.strptime(date_start, '%Y-%m-%d %H:%M:%S')
+    converted_ticks = date_fromstr + datetime.timedelta(microseconds = ticks/10)
+    return{
+        "Hour": converted_ticks.strftime("%H"),
+        "Minute": converted_ticks.strftime("%M"),
+        "Second": converted_ticks.strftime("%S"),
+        "Milisecond": str(int(converted_ticks.strftime("%f")) / 1000),
+    }
+
+def GetNTFSFileAttributes(bitArray):
+    attributes = []
+    n = 31 #Max index in bitArray
+    if bitArray[n - 0] == "1":
+        attributes.append("ReadOnly")
+    if bitArray[n - 1] == "1":
+        attributes.append("Hidden")
+    if bitArray[n - 2] == "1":
+        attributes.append("System")
+    if bitArray[n - 5] == "1":
+        attributes.append("Archive")
+    if bitArray[n - 28] == "1":
+        attributes.append("Directory")
+    return attributes
+    
 # Get FAT32 file attributes
 def GetFAT32FileAttributes(bitArray):
     attributes = []
@@ -259,6 +391,7 @@ def GetFAT32FileTimeCreated(bitArray):
         "MiliSecond": int("".join(str(x) for x in bitArray[17:]), 2),
     }
 
+    
 # Get FAT32 file date created
 def GetFAT32FileDateCreated(bitArray):
     return {
@@ -266,7 +399,7 @@ def GetFAT32FileDateCreated(bitArray):
         "Month": int("".join(str(x) for x in bitArray[7:11]), 2),
         "Day": int("".join(str(x) for x in bitArray[11:]), 2)
     }
-
+    
 # Print FAT32 item
 def PrintFAT32Item(item):
     print("{")

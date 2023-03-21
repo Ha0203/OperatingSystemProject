@@ -33,7 +33,7 @@ dirTreeview.heading('#0', text='FAT32', anchor=W)
 
 # Adding item to directory tree
 idCount = 0
-for item in diskHierarchy:
+for item in diskHierarchy:  
     if item["Parent"] < 0:
         dirTreeview.insert("", END, text=item["Name"], iid=idCount, open=False)
     else:
