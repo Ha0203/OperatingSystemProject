@@ -43,7 +43,7 @@ def ReadPhysicalDrive(driveName, sectorBytes):
         for MBRPart in MBRInfo:
             # 7 = 0x07 (NTFS)
             if MBRPart["Type"] == 7:
-                NTFSHierarchy = ReadNTFSPartition(driveName, sectorBytes, MBRPart["LBABegin"])
+                NTFSHierarchy = ReadNTFSPartition(driveName, sectorBytes, MBRPart["LBABegin"], drive)
                 partition = {
                     "Format": "NTFS",
                     "Hierarchy": NTFSHierarchy
@@ -68,114 +68,111 @@ def ReadPhysicalDrive(driveName, sectorBytes):
     return partitions
 
 # Read NTFS partition
-def ReadNTFSPartition(driveName, sectorBytes, LBAbegin):
+def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
     diskHierarchy = []
     diskHierarchyCount = -1
     
-    with open(driveName, "rb") as drive:
-        drive.seek(LBAbegin * 512)
-        volumeBootRecord = drive.read(sectorBytes)
-        #Read NTFS Volume boot record
-        volumeBootRecordInfo={
-            "BytePerSector": int.from_bytes(volumeBootRecord[int("0B", 16) : int("0B", 16) + 2], "little"),
-            "SectorPerCluster": volumeBootRecord[int("0D", 16)],
-            "SectorPerTrack": int.from_bytes(volumeBootRecord[int("18", 16) : int("18", 16) + 2], "little"),
-            "Head": int.from_bytes(volumeBootRecord[int("1A", 16) : int("1A", 16) + 2], "little"),
-            "TotalSectors": int.from_bytes(volumeBootRecord[int("28", 16) : int("28", 16) + 8], "little"),
-            "MFTStartCluster": int.from_bytes(volumeBootRecord[int("30", 16) : int("30", 16) + 8], "little"),
-            "MFTStartClusterSecondary": int.from_bytes(volumeBootRecord[int("38", 16) : int("38", 16) + 8], "little"),
-            "BytePerEntryMFT": pow(2,abs(twos_complement_to_integer("".join(format(byte, '08b') for byte in volumeBootRecord[int("40", 16) : int("40", 16) + 1][::-1])))),
+    
+    drive.seek(LBAbegin * 512)
+    volumeBootRecord = drive.read(sectorBytes)
+    #Read NTFS Volume boot record
+    volumeBootRecordInfo={
+        "BytePerSector": int.from_bytes(volumeBootRecord[int("0B", 16) : int("0B", 16) + 2], "little"),
+        "SectorPerCluster": volumeBootRecord[int("0D", 16)],
+        "SectorPerTrack": int.from_bytes(volumeBootRecord[int("18", 16) : int("18", 16) + 2], "little"),
+        "Head": int.from_bytes(volumeBootRecord[int("1A", 16) : int("1A", 16) + 2], "little"),
+        "TotalSectors": int.from_bytes(volumeBootRecord[int("28", 16) : int("28", 16) + 8], "little"),
+        "MFTStartCluster": int.from_bytes(volumeBootRecord[int("30", 16) : int("30", 16) + 8], "little"),
+        "MFTStartClusterSecondary": int.from_bytes(volumeBootRecord[int("38", 16) : int("38", 16) + 8], "little"),
+        "BytePerEntryMFT": pow(2,abs(twos_complement_to_integer("".join(format(byte, '08b') for byte in volumeBootRecord[int("40", 16) : int("40", 16) + 1][::-1]))))
+    }
+    
+    MFTSectorBegin = LBAbegin + volumeBootRecordInfo["MFTStartCluster"] * volumeBootRecordInfo["SectorPerCluster"]
+    
+    #Read NTFS MFT
+    
+    n = MFTSectorBegin * sectorBytes #Variable to run through every MFT entries
+    
+    while True: #Loop read each entry
+        drive.seek(n)
+        MFTEntry = drive.read(volumeBootRecordInfo["BytePerEntryMFT"])
+        
+        MFTEntryHeaderInfo={
+            "Signal": MFTEntry[int("00", 16) : int("00", 16) + 4].decode("utf-8"),
+            "FirstAtt": int.from_bytes(MFTEntry[int("14", 16) : int("14", 16) + 2], "little"),
+            "State": int.from_bytes(MFTEntry[int("16", 16) : int("16", 16) + 2], "little"),
+            "BytesUsed": int.from_bytes(MFTEntry[int("18", 16) : int("18", 16) + 4], "little"),
+            "Bytes": int.from_bytes(MFTEntry[int("1C", 16) : int("1C", 16) + 4], "little"),
+            "ID": int.from_bytes(MFTEntry[int("2C", 16) : int("2C", 16) + 4], "little")
         }
+        if MFTEntryHeaderInfo["Signal"] != "FILE" and MFTEntryHeaderInfo["Signal"] != "BAAD":
+            break
+        if MFTEntryHeaderInfo["State"] == 0 or MFTEntryHeaderInfo["State"] == 2: #Ignore deleted folder/file
+            n += volumeBootRecordInfo["BytePerEntryMFT"] #Move to the next entry
+            continue
         
-        MFTSectorBegin = LBAbegin + volumeBootRecordInfo["MFTStartCluster"] * volumeBootRecordInfo["SectorPerCluster"]
+        i = MFTEntryHeaderInfo["FirstAtt"] #Variable to run through every attributes in MFT entry
         
-        #Read NTFS MFT
-        
-        n = MFTSectorBegin * sectorBytes #Variable to run through every MFT entries
-        
-        while True: #Loop read each entry
-            drive.seek(n)
-            MFTEntry = drive.read(volumeBootRecordInfo["BytePerEntryMFT"])
-            
-            MFTEntryHeaderInfo={
-                "Signal": MFTEntry[int("00", 16) : int("00", 16) + 4].decode("utf-8"),
-                "FirstAtt": int.from_bytes(MFTEntry[int("14", 16) : int("14", 16) + 2], "little"),
-                "State": int.from_bytes(MFTEntry[int("16", 16) : int("16", 16) + 2], "little"),
-                "BytesUsed": int.from_bytes(MFTEntry[int("18", 16) : int("18", 16) + 4], "little"),
-                "Bytes": int.from_bytes(MFTEntry[int("1C", 16) : int("1C", 16) + 4], "little"),
-                "ID": int.from_bytes(MFTEntry[int("2C", 16) : int("2C", 16) + 4], "little"),
+        #while loop
+        item={
+                "Parent": -1,
+                "ID": MFTEntryHeaderInfo["ID"],
+                "Type": "",
+                "Name": "",
+                "Attributes": [],
+                "TimeCreated": "",
+                "DateCreated": "",
+                "Size": ""
             }
-            if MFTEntryHeaderInfo["Signal"] != "FILE" and MFTEntryHeaderInfo["Signal"] != "BAAD":
+        filesize = 0
+        while True:
+            drive.seek(n + i)
+            AttHeader = drive.read(sectorBytes)
+            AttributeHeaderInfo={
+                "Type": int.from_bytes(AttHeader[int("00", 16) : int("00",16) + 4], "little"),
+                "Size": int.from_bytes(AttHeader[int("04", 16) : int("04",16) + 4], "little"),
+                "IsNonRes": AttHeader[int("08", 16)],
+                "SizeContent": int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little"),
+                "PosContent": int.from_bytes(AttHeader[int("14", 16) : int("14",16) + 2], "little")
+            }
+            if AttributeHeaderInfo["Type"] == 16 or AttributeHeaderInfo["Type"] == 48:
+                drive.seek(n + i + AttributeHeaderInfo["PosContent"])
+                AttContent = drive.read(AttributeHeaderInfo["SizeContent"])
+            
+            if AttributeHeaderInfo["Type"] == 16: #Attribute Standard Information 0x0010
+                item["TimeCreated"] = GetNTFSFileTimeCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
+                item["DateCreated"] = GetNTFSFileDateCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
+                
+            if AttributeHeaderInfo["Type"] == 48: #Attribute File Name 0x0030
+                item["Parent"] = int.from_bytes(AttContent[int("00", 16) : int("00",16) + 6], "little")
+                lengthName = AttContent[int("40", 16)]
+                item["Name"] = AttContent[int("42", 16) : int("42",16) + lengthName * 2].decode("utf-16")
+                item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in AttContent[int("38", 16) : int("38",16) + 4][::-1]))
+            
+            elif AttributeHeaderInfo["Type"] == 128: #Attribute Data 0x0080
+                if AttributeHeaderInfo["IsNonRes"] == 0:
+                    filesize += int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little")
+                if AttributeHeaderInfo["IsNonRes"] == 1:
+                    filesize += int.from_bytes(AttHeader[int("28", 16) : int("28",16) + 8], "little")
+            elif AttributeHeaderInfo["Type"] == 4294967295: #Attribute End 0xFFFF
                 break
-            if MFTEntryHeaderInfo["State"] == 0 or MFTEntryHeaderInfo["State"] == 2: #Ignore deleted folder/file
-                n += volumeBootRecordInfo["BytePerEntryMFT"] #Move to the next entry
-                continue
-            
-            i = MFTEntryHeaderInfo["FirstAtt"] #Variable to run through every attributes in MFT entry
-            
-            #while loop
-            item={
-                    "Parent": -1,
-                    "ID": MFTEntryHeaderInfo["ID"],
-                    "Type": "",
-                    "Name": "",
-                    "Attributes": "",
-                    "TimeCreated": "",
-                    "DateCreated": "",
-                    "Size": "",
-                }
-            filesize = 0
-            while True:
-                drive.seek(n + i)
-                print(n)
-                print(i)
-                AttHeader = drive.read(sectorBytes)
-                print(n)
-                print(i)
-                AttributeHeaderInfo={
-                    "Type": int.from_bytes(AttHeader[int("00", 16) : int("00",16) + 4], "little"),
-                    "Size": int.from_bytes(AttHeader[int("04", 16) : int("04",16) + 4], "little"),
-                    "IsNonRes": AttHeader[int("08", 16)],
-                    "SizeContent": int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little"),
-                    "PosContent": int.from_bytes(AttHeader[int("14", 16) : int("14",16) + 2], "little"),
-                }
-                if AttributeHeaderInfo["Type"] == 16 or AttributeHeaderInfo["Type"] == 48:
-                    drive.seek(n + i + AttributeHeaderInfo["PosContent"])
-                    AttContent = drive.read(AttributeHeaderInfo["SizeContent"])
-                
-                if AttributeHeaderInfo["Type"] == 16: #Attribute Standard Information 0x0010
-                    item["TimeCreated"] = GetNTFSFileTimeCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
-                    item["DateCreated"] = GetNTFSFileDateCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
-                    
-                if AttributeHeaderInfo["Type"] == 48: #Attribute File Name 0x0030
-                    item["Parent"] = int.from_bytes(AttContent[int("00", 16) : int("00",16) + 6], "little")
-                    lengthName = AttContent[int("40", 16)]
-                    item["Name"] = AttContent[int("42", 16) : int("42",16) + lengthName * 2].decode("utf-16")
-                    item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in AttContent[int("38", 16) : int("38",16) + 4][::-1])),
-                
-                elif AttributeHeaderInfo["Type"] == 128: #Attribute Data 0x0080
-                    if AttributeHeaderInfo["IsNonRes"] == 0:
-                        filesize += int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little")
-                    if AttributeHeaderInfo["IsNonRes"] == 1:
-                        filesize += int.from_bytes(AttHeader[int("28", 16) : int("28",16) + 8], "little")
-                elif AttributeHeaderInfo["Type"] == 4294967295: #Attribute End 0xFFFF
-                    break
-                i += AttributeHeaderInfo["Size"]
-            if "Directory" in item["Attributes"]:
-                item["Type"] = "Folder"
-            else:
-                item["Type"] = "File"
-            item["Size"] = filesize
-            print(item)
-            #Test
-            
-            
-            if MFTEntryHeaderInfo["ID"] == 11:
-                n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to $Quota entry
-            elif MFTEntryHeaderInfo["ID"] == 26:
-                n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to user's entry
-            else: 
-                n += volumeBootRecordInfo["BytePerEntryMFT"]
+            i += AttributeHeaderInfo["Size"]
+        
+        if "Directory" in item["Attributes"]:
+            item["Type"] = "Folder"
+        else:
+            item["Type"] = "File"
+        item["Size"] = filesize
+        print(item)
+        #Test
+        
+        
+        if MFTEntryHeaderInfo["ID"] == 11:
+            n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to $Quota entry
+        elif MFTEntryHeaderInfo["ID"] == 26:
+            n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to user's entry
+        else: 
+            n += volumeBootRecordInfo["BytePerEntryMFT"]
             
     return diskHierarchy
 
