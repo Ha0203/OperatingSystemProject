@@ -6,7 +6,7 @@ import DiskManager
 diskPartitions = DiskManager.diskPartitions
 diskHierarchy = []
 for partition in diskPartitions:
-    if partition["Format"] == "FAT32":
+    if partition["Format"] == "NTFS":
         diskHierarchy = partition["Hierarchy"]
         break
 
@@ -32,13 +32,21 @@ dirTreeview.column("#0", width=390)
 dirTreeview.heading('#0', text='FAT32', anchor=W)
 
 # Adding item to directory tree
-idCount = 0
-for item in diskHierarchy:  
-    if item["Parent"] < 0:
-        dirTreeview.insert("", END, text=item["Name"], iid=idCount, open=False)
-    else:
-        dirTreeview.insert(item["Parent"], END, text=item["Name"], iid=idCount, open=False)
-    idCount += 1
+# idCount = 0
+# for item in diskHierarchy:  
+#     if item["Parent"] < 0:
+#         dirTreeview.insert("", END, text=item["Name"], iid=idCount, open=False)
+#     else:
+#         dirTreeview.insert(item["Parent"], END, text=item["Name"], iid=idCount, open=False)
+#     idCount += 1
+
+count = 0
+for item in diskHierarchy:
+    dirTreeview.insert("", END, text=item["Name"], iid=item["ID"], open=False)
+for item in diskHierarchy:
+    if item["Parent"] != 5:
+        dirTreeview.move(item["ID"], item["Parent"],count)
+    count += 1
 
 dirTreeview.place(anchor=NW, x=2, y=43)
 

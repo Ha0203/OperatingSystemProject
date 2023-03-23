@@ -70,8 +70,6 @@ def ReadPhysicalDrive(driveName, sectorBytes):
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
     diskHierarchy = []
-    diskHierarchyCount = -1
-    
     
     drive.seek(LBAbegin * 512)
     volumeBootRecord = drive.read(sectorBytes)
@@ -126,34 +124,31 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
             }
         filesize = 0
         while True:
-            drive.seek(n + i)
-            AttHeader = drive.read(sectorBytes)
             AttributeHeaderInfo={
-                "Type": int.from_bytes(AttHeader[int("00", 16) : int("00",16) + 4], "little"),
-                "Size": int.from_bytes(AttHeader[int("04", 16) : int("04",16) + 4], "little"),
-                "IsNonRes": AttHeader[int("08", 16)],
-                "SizeContent": int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little"),
-                "PosContent": int.from_bytes(AttHeader[int("14", 16) : int("14",16) + 2], "little")
+                "Type": int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little"),
+                "Size": int.from_bytes(MFTEntry[int("04", 16) + i : int("04",16) + 4 + i], "little"),
+                "IsNonRes": MFTEntry[int("08", 16) + i],
+                "SizeContent": int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little"),
+                "PosContent": int.from_bytes(MFTEntry[int("14", 16) + i : int("14",16) + 2 + i], "little")
             }
             if AttributeHeaderInfo["Type"] == 16 or AttributeHeaderInfo["Type"] == 48:
-                drive.seek(n + i + AttributeHeaderInfo["PosContent"])
-                AttContent = drive.read(AttributeHeaderInfo["SizeContent"])
+                k = AttributeHeaderInfo["PosContent"] + i
             
             if AttributeHeaderInfo["Type"] == 16: #Attribute Standard Information 0x0010
-                item["TimeCreated"] = GetNTFSFileTimeCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
-                item["DateCreated"] = GetNTFSFileDateCreated(int.from_bytes(AttContent[int("00", 16) : int("00",16) + 8], "little"))
+                item["TimeCreated"] = GetNTFSFileTimeCreated(int.from_bytes(MFTEntry[int("00", 16) + k : int("00",16) + 8 + k], "little"))
+                item["DateCreated"] = GetNTFSFileDateCreated(int.from_bytes(MFTEntry[int("00", 16) + k : int("00",16) + 8 +k], "little"))
                 
             if AttributeHeaderInfo["Type"] == 48: #Attribute File Name 0x0030
-                item["Parent"] = int.from_bytes(AttContent[int("00", 16) : int("00",16) + 6], "little")
-                lengthName = AttContent[int("40", 16)]
-                item["Name"] = AttContent[int("42", 16) : int("42",16) + lengthName * 2].decode("utf-16")
-                item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in AttContent[int("38", 16) : int("38",16) + 4][::-1]))
+                item["Parent"] = int.from_bytes(MFTEntry[int("00", 16) + k: int("00",16) + 6 +k], "little")
+                lengthName = MFTEntry[int("40", 16) + k]
+                item["Name"] = MFTEntry[int("42", 16) + k: int("42",16) + lengthName * 2 + k].decode("utf-16")
+                item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in MFTEntry[int("38", 16) + k: int("38",16) + 4 + k][::-1]))
             
             elif AttributeHeaderInfo["Type"] == 128: #Attribute Data 0x0080
                 if AttributeHeaderInfo["IsNonRes"] == 0:
-                    filesize += int.from_bytes(AttHeader[int("10", 16) : int("10",16) + 4], "little")
+                    filesize += int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little")
                 if AttributeHeaderInfo["IsNonRes"] == 1:
-                    filesize += int.from_bytes(AttHeader[int("28", 16) : int("28",16) + 8], "little")
+                    filesize += int.from_bytes(MFTEntry[int("28", 16) + i : int("28",16) + 8 + i], "little")
             elif AttributeHeaderInfo["Type"] == 4294967295: #Attribute End 0xFFFF
                 break
             i += AttributeHeaderInfo["Size"]
@@ -163,7 +158,8 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
         else:
             item["Type"] = "File"
         item["Size"] = filesize
-        print(item)
+        diskHierarchy.append(item)
+    
         #Test
         
         
