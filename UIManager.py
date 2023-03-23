@@ -44,7 +44,7 @@ count = 0
 for item in diskHierarchy:
     dirTreeview.insert("", END, text=item["Name"], iid=item["ID"], open=False)
 for item in diskHierarchy:
-    if item["Parent"] != 5:
+    if item["Parent"] != item["ID"]:
         dirTreeview.move(item["ID"], item["Parent"],count)
     count += 1
 
