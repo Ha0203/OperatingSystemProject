@@ -60,6 +60,7 @@ def ReadPhysicalDrive(driveName, sectorBytes):
                 for item in reversed(partition["Hierarchy"]):
                     if item["Parent"] >= 0:
                         partition["Hierarchy"][item["Parent"]]["Size"] += item["Size"]
+                    
 
                 partitions.append(partition)
             else:
@@ -173,8 +174,7 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
         if item["Parent"] != -1 and item["Type"] == "File" and item["Parent"] != 5:
             updateSize(diskHierarchy,item["Size"], item["Parent"])
                 
-    for item in diskHierarchy:
-        print(item)
+    
     return diskHierarchy
 
 def updateSize(diskHierarchy, size, id):
@@ -213,7 +213,7 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
         drive.seek(RDETSectorBegin * sectorBytes)
         entryQueue = LifoQueue()
 
-        for n in range(0, bootSectorInfo["ClusterSectors"]):            
+        while True:            
             RDET = drive.read(sectorBytes)            
 
             # Entry size is 32B
@@ -240,7 +240,9 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                         subEntry = entryQueue.get()
                         for j in range(1, 4):
                             entryName += subEntry["Name" + str(j)]
-                    entryName = entryName[:entryName.find("\x00")]
+                    removePos = entryName.find("\x00")
+                    if removePos > 0:
+                        entryName = entryName[:entryName.find("\x00")]
 
                     entry = {
                         "Name": entryName,
@@ -251,11 +253,16 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                         "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
                         "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                         "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
-                    }
+                    }                    
+                    if entry["Name"] == "":
+                        if entry["ExtendedName"].rstrip() != "":
+                            entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
+                        else:
+                            entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
                     item = {
                         "Parent": -1,
                         "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
-                        "Name": entry["Name"] if entry["Name"] != "" else (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower(),
+                        "Name": entry["Name"],
                         "Attributes": entry["Attributes"],
                         "TimeCreated": entry["TimeCreated"],
                         "DateCreated": entry["DateCreated"],
@@ -280,7 +287,7 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
         entryQueue = LifoQueue()       
 
         # Read in a cluster
-        for n in range(0, bootSectorInfo["ClusterSectors"]):
+        while True:
             data = drive.read(sectorBytes)             
 
             for i in range(0, sectorBytes, 32):
@@ -306,7 +313,9 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
                         subEntry = entryQueue.get()
                         for j in range(1, 4):
                             entryName += subEntry["Name" + str(j)]
-                    entryName = entryName[:entryName.find("\x00")]
+                    removePos = entryName.find("\x00")
+                    if removePos > 0:
+                        entryName = entryName[:entryName.find("\x00")]
 
                     entry = {
                         "Name": entryName,
@@ -318,10 +327,15 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
                         "ClusterBegin": int.from_bytes(data[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                         "Size": int.from_bytes(data[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
                     }
+                    if entry["Name"] == "":
+                        if entry["ExtendedName"].rstrip() != "":
+                            entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
+                        else:
+                            entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
                     item = {
                         "Parent": parent,
                         "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
-                        "Name": entry["Name"] if entry["Name"] != "" else (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower(),
+                        "Name": entry["Name"],
                         "Attributes": entry["Attributes"],
                         "TimeCreated": entry["TimeCreated"],
                         "DateCreated": entry["DateCreated"],
