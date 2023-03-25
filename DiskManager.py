@@ -70,8 +70,8 @@ def ReadPhysicalDrive(driveName, sectorBytes):
 # Read NTFS partition
 def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
     diskHierarchy = []
-    
     drive.seek(LBAbegin * 512)
+    
     volumeBootRecord = drive.read(sectorBytes)
     #Read NTFS Volume boot record
     volumeBootRecordInfo={
@@ -158,20 +158,37 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
         else:
             item["Type"] = "File"
         item["Size"] = filesize
+        
         diskHierarchy.append(item)
+        
     
-        #Test
-        
-        
         if MFTEntryHeaderInfo["ID"] == 11:
             n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to $Quota entry
         elif MFTEntryHeaderInfo["ID"] == 26:
             n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to user's entry
         else: 
             n += volumeBootRecordInfo["BytePerEntryMFT"]
-            
+        
+    for item in diskHierarchy:
+        if item["Parent"] != -1 and item["Type"] == "File" and item["Parent"] != 5:
+            updateSize(diskHierarchy,item["Size"], item["Parent"])
+                
+    for item in diskHierarchy:
+        print(item)
     return diskHierarchy
 
+def updateSize(diskHierarchy, size, id):
+    for item in diskHierarchy:
+        if item["ID"] == id:
+            item["Size"] += size
+            if item["ID"] == item["Parent"]:
+                return
+            if item["Parent"] != -1:
+                updateSize(diskHierarchy, size, item["Parent"])
+            return
+    
+    
+    
 
 # Read FAT32 partition
 def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
@@ -328,7 +345,7 @@ def GetNTFSFileDateCreated(ticks):
     return{
         "Year": converted_ticks.strftime("%Y"),
         "Month": converted_ticks.strftime("%m"),
-        "Day": converted_ticks.strftime("%d"),
+        "Day": converted_ticks.strftime("%d")
     }
 
 # Get NTFS file time created
@@ -340,7 +357,7 @@ def GetNTFSFileTimeCreated(ticks):
         "Hour": converted_ticks.strftime("%H"),
         "Minute": converted_ticks.strftime("%M"),
         "Second": converted_ticks.strftime("%S"),
-        "Milisecond": str(int(converted_ticks.strftime("%f")) / 1000),
+        "Milisecond": str(int(converted_ticks.strftime("%f")) / 1000)
     }
 
 def GetNTFSFileAttributes(bitArray):
