@@ -2,6 +2,30 @@ from tkinter import *
 from tkinter import ttk
 import DiskManager
 
+
+def InformationDisplay(i):
+    selected = dirTreeview.item(dirTreeview.focus())
+
+    item = 0
+    if currentPartition == 0 and len(diskHierarchyF) > 0:
+        item = diskHierarchyF[0]
+        for i in diskHierarchyF :
+            if i["Name"] == selected["text"]:
+                item = i
+                break
+    elif currentPartition == 1 and len(diskHierarchyN) > 0:
+        item = diskHierarchyN[0]
+        for i in diskHierarchyN:
+            if i["Name"] == selected["text"]:
+                item = i
+                break
+
+    nameI["text"] = item["Name"]
+    attributeI["text"] = item["Attributes"]
+    timeCI["text"] = item["TimeCreated"]
+    dateCI["text"] = item["DateCreated"]
+    sizeI["text"] = item["Size"]
+
 def TreeDel():
     for c in dirTreeview.get_children():
         dirTreeview.delete(c)
@@ -24,6 +48,8 @@ def FATBuild():
     for item in diskHierarchyF:
         if item["Parent"] >= 0:
             dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
+
+    currentPartition = 0
             
 def NTFSBuild():
     #Adding item to directory tree
@@ -42,6 +68,8 @@ def NTFSBuild():
     for item in diskHierarchyN:
         if item["Parent"] >= 0:
             dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
+
+    currentPartition = 1
 # Data
 diskPartitions = DiskManager.diskPartitions
 diskHierarchyF = []
@@ -84,16 +112,44 @@ dirTreeview = ttk.Treeview(itemList, height=24)
 dirTreeview.column("#0", width = 390)
 dirTreeview.heading('#0', text='FAT32', anchor=W)
 dirTreeview.grid(row = 1, column = 0)
+dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
 
 FATBuild()
+Cont2 = Frame(content, bg="#ffffff", height=550, width=450)
+Cont2.grid(row = 0, column = 1, sticky = NSEW)
+itemInfo = Frame(Cont2, bg="#ffffff", height=550, width=450)
+itemInfo.grid(row = 1, column = 0, sticky = NSEW)
 
-itemInfo = Canvas(content, bg="#646E8F", height=550, width=450)
-itemInfo.grid(row = 0, column = 1, sticky = NE)
+#Informations
+blank = Label(Cont2, background = "#ffffff", width = 60, height = 0)
+blank.grid(row = 0, column = 0 , sticky = NSEW)
+
+nameL = Label(itemInfo, text = "Name:", bg = "#ffffff")
+nameI = Label(itemInfo, bg = "#ffffff")
+attributeL = Label(itemInfo, text = "Attributes:", bg = "#ffffff")
+attributeI = Label(itemInfo, bg = "#ffffff")
+timeCL = Label(itemInfo, text = "Time Created:", bg = "#ffffff")
+timeCI = Label(itemInfo, bg = "#ffffff")
+dateCL = Label(itemInfo, text = "Date Created:", bg = "#ffffff")
+dateCI = Label(itemInfo, bg = "#ffffff")
+sizeL = Label(itemInfo, text = "Size:", bg = "#ffffff")
+sizeI = Label(itemInfo, bg = "#ffffff")
+
+nameL.grid(row = 0, column = 0, sticky = W, pady = 5)
+nameI.grid(row = 0, column = 1, sticky = NSEW, pady = 5)
+attributeL.grid(row = 1, column = 0, sticky = W, pady = 5)
+attributeI.grid(row = 1, column = 1, sticky = NSEW, pady = 5)
+timeCL.grid(row = 2, column = 0, sticky = W, pady = 5)
+timeCI.grid(row = 2, column = 1, sticky = NSEW, pady = 5)
+dateCL.grid(row = 3, column = 0, sticky = W, pady = 5)
+dateCI.grid(row = 3, column = 1, sticky = NSEW, pady = 5)
+sizeL.grid(row = 4, column = 0, sticky = W, pady = 5)
+sizeI.grid(row = 4, column = 1, sticky = NSEW, pady = 5)
 
 # Style
 style = ttk.Style()
 style.theme_use("clam")
 style.configure("Treeview", background="#323232", foreground="white", fieldbackground="#323232")
 
-
+currentPartition = 0
 window.mainloop()
