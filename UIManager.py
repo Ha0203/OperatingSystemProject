@@ -2,7 +2,13 @@ from tkinter import *
 from tkinter import ttk
 import DiskManager
 
-
+def InformationHide():
+    nameI["text"] = ""
+    attributeI["text"] = ""
+    timeCI["text"] = ""
+    dateCI["text"] = ""
+    sizeI["text"] = ""
+    
 def InformationDisplay(i):
     selected = dirTreeview.item(dirTreeview.focus())
 
@@ -22,9 +28,11 @@ def InformationDisplay(i):
 
     nameI["text"] = item["Name"]
     attributeI["text"] = item["Attributes"]
-    timeCI["text"] = item["TimeCreated"]
-    dateCI["text"] = item["DateCreated"]
-    sizeI["text"] = item["Size"]
+    temp = item["TimeCreated"]
+    timeCI["text"] = str(temp["Hour"]) + ":" + str(temp["Minute"]) + ":" + str(temp["Second"]) + "," + str(temp["MiliSecond"])
+    temp = item["DateCreated"]
+    dateCI["text"] = str(temp["Day"]) + "/" + str(temp["Month"]) + "/" + str(temp["Year"])
+    sizeI["text"] = str(item["Size"]) + " bytes"
 
 def TreeDel():
     for c in dirTreeview.get_children():
@@ -32,6 +40,7 @@ def TreeDel():
 
 def FATBuild():
     #Adding item to directory tree
+    InformationHide()
     TreeDel()
     count = 0
     for item in diskHierarchyF:
@@ -49,10 +58,13 @@ def FATBuild():
         if item["Parent"] >= 0:
             dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
 
+    select1["bg"] = "#19A7CE"
+    select2["bg"] = "#ffffff"
     currentPartition = 0
             
 def NTFSBuild():
     #Adding item to directory tree
+    InformationHide()
     TreeDel()
     count = 0
     for item in diskHierarchyN:
@@ -69,6 +81,8 @@ def NTFSBuild():
         if item["Parent"] >= 0:
             dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
 
+    select2["bg"] = "#19A7CE"
+    select1["bg"] = "#ffffff"
     currentPartition = 1
 # Data
 diskPartitions = DiskManager.diskPartitions
@@ -102,19 +116,12 @@ content.grid(row = 1, column = 0, sticky = NW)
 itemList = Canvas(content, bg="#ffffff", height=550, width=400)
 itemList.grid(row = 0, column = 0, sticky = NW)
 
-#Button Choice
-select1 = Button(itemList, text = "FAT32", bg = '#ffffff', relief = SOLID, borderwidth = 0, command = FATBuild)
-select1.grid(row = 0, column = 0, sticky = W, pady = 2)
-select2 = Button(itemList, text = "NTFS", bg = '#ffffff', relief = SOLID, borderwidth = 0, command = NTFSBuild)
-select2.grid(row = 0, column = 0)
 # Treeview
-dirTreeview = ttk.Treeview(itemList, height=24)
+dirTreeview = ttk.Treeview(itemList, height=24, show = "tree")
 dirTreeview.column("#0", width = 390)
 dirTreeview.heading('#0', text='FAT32', anchor=W)
 dirTreeview.grid(row = 1, column = 0)
-dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
 
-FATBuild()
 Cont2 = Frame(content, bg="#ffffff", height=550, width=450)
 Cont2.grid(row = 0, column = 1, sticky = NSEW)
 itemInfo = Frame(Cont2, bg="#ffffff", height=550, width=450)
@@ -136,20 +143,29 @@ sizeL = Label(itemInfo, text = "Size:", bg = "#ffffff")
 sizeI = Label(itemInfo, bg = "#ffffff")
 
 nameL.grid(row = 0, column = 0, sticky = W, pady = 5)
-nameI.grid(row = 0, column = 1, sticky = NSEW, pady = 5)
+nameI.grid(row = 0, column = 1, sticky = W, pady = 5)
 attributeL.grid(row = 1, column = 0, sticky = W, pady = 5)
-attributeI.grid(row = 1, column = 1, sticky = NSEW, pady = 5)
+attributeI.grid(row = 1, column = 1, sticky = W, pady = 5)
 timeCL.grid(row = 2, column = 0, sticky = W, pady = 5)
-timeCI.grid(row = 2, column = 1, sticky = NSEW, pady = 5)
+timeCI.grid(row = 2, column = 1, sticky = W, pady = 5)
 dateCL.grid(row = 3, column = 0, sticky = W, pady = 5)
-dateCI.grid(row = 3, column = 1, sticky = NSEW, pady = 5)
+dateCI.grid(row = 3, column = 1, sticky = W, pady = 5)
 sizeL.grid(row = 4, column = 0, sticky = W, pady = 5)
-sizeI.grid(row = 4, column = 1, sticky = NSEW, pady = 5)
+sizeI.grid(row = 4, column = 1, sticky = W, pady = 5)
+
+#Button Choice
+select1 = Button(itemList, text = "FAT32", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = FATBuild)
+select1.grid(row = 0, column = 0, sticky = W)
+select2 = Button(itemList, text = "NTFS", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = NTFSBuild)
+select2.grid(row = 0, column = 0)
 
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="#323232", foreground="white", fieldbackground="#323232")
-
+style.configure("Treeview", background="#ffffff", foreground="white", fieldbackground="#ffffff")
+style.map('Treeview', background=[('selected', '#19A7CE')])
+style.map('Treeview', bw=[('selected', 0)])
+dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
 currentPartition = 0
+FATBuild()
 window.mainloop()
