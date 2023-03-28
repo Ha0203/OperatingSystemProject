@@ -243,17 +243,17 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                     removePos = entryName.find("\x00")
                     if removePos > 0:
                         entryName = entryName[:entryName.find("\x00")]
-
+                        
                     entry = {
                         "Name": entryName,
-                        "PrimaryName": RDET[i : i + 8].decode("utf-8"),
+                        "PrimaryName": RDET[i : i + 8].decode("latin-1"),
                         "ExtendedName": RDET[i + int("08", 16) : i + int("08", 16) + 3].decode("utf-8"),
                         "Attributes": GetFAT32FileAttributes("{0:08b}".format(RDET[i + int("0B", 16)])),
                         "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in RDET[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
                         "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
                         "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                         "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
-                    }                    
+                    }                  
                     if entry["Name"] == "":
                         if entry["ExtendedName"].rstrip() != "":
                             entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
@@ -319,7 +319,7 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
 
                     entry = {
                         "Name": entryName,
-                        "PrimaryName": data[i : i + 8].decode("utf-8"),
+                        "PrimaryName": data[i : i + 8].decode("latin-1"),
                         "ExtendedName": data[i + int("08", 16) : i + int("08", 16) + 3].decode("utf-8"),
                         "Attributes": GetFAT32FileAttributes("{0:08b}".format(data[i + int("0B", 16)])),
                         "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in data[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
