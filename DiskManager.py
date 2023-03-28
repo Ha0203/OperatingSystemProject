@@ -454,7 +454,3 @@ def twos_complement_to_integer(s):
         s = bin(int(s, 2) + 1)[2:]
         
     return int('-' + s if negative else s, 2)
-
-# Main
-USBDrives = GetUSBDrive()
-diskPartitions = ReadPhysicalDrive(USBDrives[0].name, USBDrives[0].BytesperSector)

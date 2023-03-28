@@ -2,6 +2,16 @@ from tkinter import *
 from tkinter import ttk
 import DiskManager
 
+# Data
+USBDrives = DiskManager.GetUSBDrive()
+USBDrivesLength = len(USBDrives)
+
+diskPartitions = []
+diskPartitionsLength = 0
+
+driveButtonList = []
+buttonList = []
+
 def InformationHide():
     nameI["text"] = ""
     attributeI["text"] = ""
@@ -38,66 +48,42 @@ def TreeDel():
     for c in dirTreeview.get_children():
         dirTreeview.delete(c)
 
-def FATBuild():
+def FATBuild(partition):
     #Adding item to directory tree
     InformationHide()
     TreeDel()
     count = 0
-    for item in diskHierarchyF:
+    for item in partition["Hierarchy"]:
         dirTreeview.insert("", END, text=item["Name"], iid=count, open=False)
         item["ID"] = count
         count += 1
         
-    aCount = []
-    i = 0
-    while i < count:
-        aCount.append(0)
-        i += 1
-        
-    for item in diskHierarchyF:
+    count = 0
+    for item in partition["Hierarchy"]:
         if item["Parent"] >= 0:
-            dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
+            dirTreeview.move(item["ID"], item["Parent"], count)
+            count += 1
 
-    select1["bg"] = "#19A7CE"
-    select2["bg"] = "#ffffff"
+    # select1["bg"] = "#19A7CE"
+    # select2["bg"] = "#ffffff"
     currentPartition = 0
             
-def NTFSBuild():
+def NTFSBuild(partition):
     #Adding item to directory tree
     InformationHide()
     TreeDel()
-    count = 0
-    for item in diskHierarchyN:
-        dirTreeview.insert("", END, text=item["Name"], iid=count, open=False)
-        count += 1
+    for item in partition["Hierarchy"]:
+        dirTreeview.insert("", END, text=item["Name"], iid=item["ID"], open=False)
         
-    aCount = []
-    i = 0
-    while i < count:
-        aCount.append(0)
-        i += 1
-        
-    for item in diskHierarchyN:
-        if item["Parent"] >= 0:
-            dirTreeview.move(item["ID"], item["Parent"], aCount[item["Parent"]])
+    count = 0    
+    for item in partition["Hierarchy"]:
+        if item["Parent"] >= 0 and item["ID"] != 5:
+            dirTreeview.move(item["ID"], item["Parent"], count)
+            count += 1
 
-    select2["bg"] = "#19A7CE"
-    select1["bg"] = "#ffffff"
+    # select2["bg"] = "#19A7CE"
+    # select1["bg"] = "#ffffff"
     currentPartition = 1
-# Data
-diskPartitions = DiskManager.diskPartitions
-diskHierarchyF = []
-diskHierarchyN = []
-c = 0
-for partition in diskPartitions:
-    if partition["Format"] == "FAT32":
-        diskHierarchyF = partition["Hierarchy"]
-        c += 1
-    elif partition["Format"] == "NTFS":
-        diskHierarchyN = partition[diskHierarchyN]
-        c += 1
-    if c == 2:
-        break
 
 # GUI window
 window = Tk()
@@ -154,18 +140,37 @@ sizeL.grid(row = 4, column = 0, sticky = W, pady = 5)
 sizeI.grid(row = 4, column = 1, sticky = W, pady = 5)
 
 #Button Choice
-select1 = Button(itemList, text = "FAT32", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = FATBuild)
-select1.grid(row = 0, column = 0, sticky = W)
-select2 = Button(itemList, text = "NTFS", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = NTFSBuild)
-select2.grid(row = 0, column = 0)
+buttonRow = 0
+buttonIndex = 0
+buttonWidth = 55
+for drive in USBDrives:
+    diskPartitions = DiskManager.ReadPhysicalDrive(drive.name, drive.BytesPerSector)
+    diskPartitionsLength = len(diskPartitions)
+    for partition in diskPartitions:
+        if partition["Format"] == "NTFS":
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition: NTFSBuild(partition)))
+        else:
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition: FATBuild(partition)))
+        if buttonIndex % 3 == 0:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = W)
+        elif buttonIndex % 3 == 1 and diskPartitionsLength - buttonIndex > 1:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = N)
+        else:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = E)
+            buttonRow += 1
+        buttonIndex += 1
+
+# select1 = Button(itemList, text = "FAT32", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = FATBuild)
+# select1.grid(row = 0, column = 0, sticky = W)
+# select2 = Button(itemList, text = "NTFS", bg = '#ffffff', relief = SOLID, borderwidth = 1, command = NTFSBuild)
+# select2.grid(row = 0, column = 0)
 
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="#ffffff", foreground="white", fieldbackground="#ffffff")
+style.configure("Treeview", background="black", foreground="white", fieldbackground="black")
 style.map('Treeview', background=[('selected', '#19A7CE')])
 style.map('Treeview', bw=[('selected', 0)])
 dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
 currentPartition = 0
-FATBuild()
 window.mainloop()
