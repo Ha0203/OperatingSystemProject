@@ -373,7 +373,7 @@ def GetNTFSFileTimeCreated(ticks):
         "Hour": converted_ticks.strftime("%H"),
         "Minute": converted_ticks.strftime("%M"),
         "Second": converted_ticks.strftime("%S"),
-        "Milisecond": str(int(converted_ticks.strftime("%f")) / 1000)
+        "MiliSecond": str(int(converted_ticks.strftime("%f")) / 1000)
     }
 
 def GetNTFSFileAttributes(bitArray):
