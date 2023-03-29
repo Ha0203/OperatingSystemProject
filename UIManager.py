@@ -20,7 +20,7 @@ def InformationHide():
     sizeI["text"] = ""
     
 def InformationDisplay(e):
-    p = currentPartition
+    global currentPartition
     selected = dirTreeview.item(dirTreeview.focus())
         
     item = {
@@ -39,8 +39,8 @@ def InformationDisplay(e):
         },
         "Size": 0
     }
-    print(p["Format"])
-    for i in p["Hierarchy"]:
+    print(currentPartition["Format"])
+    for i in currentPartition["Hierarchy"]:
         if i["Name"] == selected["text"]:
             item = i
             break
@@ -75,6 +75,7 @@ def FATBuild(partition):
 
     # select1["bg"] = "#19A7CE"
     # select2["bg1"] = "#ffffff"
+    global currentPartition 
     currentPartition = partition
             
 def NTFSBuild(partition):
@@ -92,10 +93,8 @@ def NTFSBuild(partition):
 
     # select2["bg"] = "#19A7CE"
     # select1["bg"] = "#ffffff"
+    global currentPartition 
     currentPartition = partition
-    print(currentPartition["Format"])
-    dirTreeview.unbind('<ButtonRelease-1>')
-    dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
 
 # GUI window
 window = Tk()
