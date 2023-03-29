@@ -124,14 +124,21 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
                 "Size": ""
             }
         filesize = 0
+        entryDataRunned = 0
         while True:
-            AttributeHeaderInfo={
-                "Type": int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little"),
-                "Size": int.from_bytes(MFTEntry[int("04", 16) + i : int("04",16) + 4 + i], "little"),
-                "IsNonRes": MFTEntry[int("08", 16) + i],
-                "SizeContent": int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little"),
-                "PosContent": int.from_bytes(MFTEntry[int("14", 16) + i : int("14",16) + 2 + i], "little")
-            }
+            checktype = int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little")
+            if(checktype != 4294967295): #Attribute End 0xFFFF
+                AttributeHeaderInfo={
+                    "Type": int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little"),
+                    "Size": int.from_bytes(MFTEntry[int("04", 16) + i : int("04",16) + 4 + i], "little"),
+                    "IsNonRes": MFTEntry[int("08", 16) + i],
+                    "SizeContent": int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little"),
+                    "PosContent": int.from_bytes(MFTEntry[int("14", 16) + i : int("14",16) + 2 + i], "little")
+                }
+            else:
+                AttributeHeaderInfo={
+                    "Type": int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little")
+                }
             if AttributeHeaderInfo["Type"] == 16 or AttributeHeaderInfo["Type"] == 48:
                 k = AttributeHeaderInfo["PosContent"] + i
             
@@ -146,10 +153,12 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
                 item["Attributes"] = GetNTFSFileAttributes(''.join(format(byte, '08b') for byte in MFTEntry[int("38", 16) + k: int("38",16) + 4 + k][::-1]))
             
             elif AttributeHeaderInfo["Type"] == 128: #Attribute Data 0x0080
-                if AttributeHeaderInfo["IsNonRes"] == 0:
+                if AttributeHeaderInfo["IsNonRes"] == 0 and entryDataRunned == 0:
                     filesize += int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little")
-                if AttributeHeaderInfo["IsNonRes"] == 1:
-                    filesize += int.from_bytes(MFTEntry[int("28", 16) + i : int("28",16) + 8 + i], "little")
+                    entryDataRunned = 1
+                if AttributeHeaderInfo["IsNonRes"] == 1 and entryDataRunned == 0:
+                    filesize += int.from_bytes(MFTEntry[int("30", 16) + i : int("30",16) + 8 + i], "little")
+                    entryDataRunned = 1
             elif AttributeHeaderInfo["Type"] == 4294967295: #Attribute End 0xFFFF
                 break
             i += AttributeHeaderInfo["Size"]
@@ -172,8 +181,7 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
         
     for item in diskHierarchy:
         if item["Parent"] != -1 and item["Type"] == "File" and item["Parent"] != 5:
-            updateSize(diskHierarchy,item["Size"], item["Parent"])
-                
+            updateSize(diskHierarchy,item["Size"], item["Parent"])         
     
     return diskHierarchy
 
@@ -357,7 +365,7 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clust
 def GetNTFSFileDateCreated(ticks):
     date_start = '1601-01-01 00:00:00'
     date_fromstr = datetime.datetime.strptime(date_start, '%Y-%m-%d %H:%M:%S')
-    converted_ticks = date_fromstr + datetime.timedelta(microseconds = ticks/10)
+    converted_ticks = date_fromstr + datetime.timedelta(hours = 7) + datetime.timedelta(microseconds = ticks/10)
     return{
         "Year": converted_ticks.strftime("%Y"),
         "Month": converted_ticks.strftime("%m"),
@@ -368,7 +376,7 @@ def GetNTFSFileDateCreated(ticks):
 def GetNTFSFileTimeCreated(ticks):
     date_start = '1601-01-01 00:00:00'
     date_fromstr = datetime.datetime.strptime(date_start, '%Y-%m-%d %H:%M:%S')
-    converted_ticks = date_fromstr + datetime.timedelta(microseconds = ticks/10)
+    converted_ticks = date_fromstr + datetime.timedelta(hours = 7) + datetime.timedelta(microseconds = ticks/10)
     return{
         "Hour": converted_ticks.strftime("%H"),
         "Minute": converted_ticks.strftime("%M"),
