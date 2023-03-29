@@ -27,6 +27,7 @@ def InformationHide():
     sizeI["text"] = ""
     
 def InformationDisplay(e):
+    InformationHide()
     global currentPartition
     selected = dirTreeview.item(dirTreeview.focus())
         
@@ -52,10 +53,20 @@ def InformationDisplay(e):
             item = i
             break
 
-    nameI["text"] = item["Name"]
+    i = 0
+    end = 50
+    limit = 0
+    while end < len(item["Name"]) and limit < 5:
+        nameI["text"] += item["Name"][i : end] + "\n"
+        limit += 1
+        i += 50
+        end += 50
+    if end > len(item["Name"]) and limit < 5:
+        nameI["text"] += item["Name"][i :] + "\n"
+        
     attributeI["text"] = item["Attributes"]
     temp = item["TimeCreated"]
-    timeCI["text"] = str(temp["Hour"]) + ":" + str(temp["Minute"]) + ":" + str(temp["Second"]) + "," + str(temp["MiliSecond"])
+    timeCI["text"] = str(temp["Hour"]) + ":" + str(temp["Minute"]) + ":" + str(temp["Second"])
     temp = item["DateCreated"]
     dateCI["text"] = str(temp["Day"]) + "/" + str(temp["Month"]) + "/" + str(temp["Year"])
     sizeI["text"] = str(item["Size"]) + " bytes"
@@ -134,26 +145,26 @@ blank = Label(Cont2, background = "#ffffff", width = 60, height = 0)
 blank.grid(row = 0, column = 0 , sticky = NSEW)
 
 nameL = Label(itemInfo, text = "Name:", bg = "#ffffff")
-nameI = Label(itemInfo, bg = "#ffffff")
+nameI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 attributeL = Label(itemInfo, text = "Attributes:", bg = "#ffffff")
-attributeI = Label(itemInfo, bg = "#ffffff")
+attributeI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 timeCL = Label(itemInfo, text = "Time Created:", bg = "#ffffff")
-timeCI = Label(itemInfo, bg = "#ffffff")
+timeCI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 dateCL = Label(itemInfo, text = "Date Created:", bg = "#ffffff")
-dateCI = Label(itemInfo, bg = "#ffffff")
+dateCI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 sizeL = Label(itemInfo, text = "Size:", bg = "#ffffff")
-sizeI = Label(itemInfo, bg = "#ffffff")
+sizeI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 
 nameL.grid(row = 0, column = 0, sticky = W, pady = 5)
-nameI.grid(row = 0, column = 1, sticky = W, pady = 5)
-attributeL.grid(row = 1, column = 0, sticky = W, pady = 5)
-attributeI.grid(row = 1, column = 1, sticky = W, pady = 5)
-timeCL.grid(row = 2, column = 0, sticky = W, pady = 5)
-timeCI.grid(row = 2, column = 1, sticky = W, pady = 5)
-dateCL.grid(row = 3, column = 0, sticky = W, pady = 5)
-dateCI.grid(row = 3, column = 1, sticky = W, pady = 5)
-sizeL.grid(row = 4, column = 0, sticky = W, pady = 5)
-sizeI.grid(row = 4, column = 1, sticky = W, pady = 5)
+nameI.grid(row = 0, column = 1, sticky = NSEW, pady = 5)
+attributeL.grid(row = 3, column = 0, sticky = W, pady = 5)
+attributeI.grid(row = 3, column = 1, sticky = NSEW, pady = 5)
+timeCL.grid(row = 4, column = 0, sticky = W, pady = 5)
+timeCI.grid(row = 4, column = 1, sticky = NSEW, pady = 5)
+dateCL.grid(row = 5, column = 0, sticky = W, pady = 5)
+dateCI.grid(row = 5, column = 1, sticky = NSEW, pady = 5)
+sizeL.grid(row = 6, column = 0, sticky = W, pady = 5)
+sizeI.grid(row = 6, column = 1, sticky = NSEW, pady = 5)
 
 #Button Choice
 buttonRow = 0
@@ -180,9 +191,31 @@ for drive in USBDrives:
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="grey", foreground="white", fieldbackground="grey")
+style.configure("Treeview", background="#d4e0ff", foreground="white", fieldbackground="#d4e0ff")
 style.map('Treeview', background=[('selected', '#19A7CE')])
 style.map('Treeview', bw=[('selected', 0)])
 dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
+#Scrollbar
+# Constructing vertical scrollbar
+# with treeview
+verscrlbar = Scrollbar(itemList,
+                           orient ="vertical",
+                           command = dirTreeview.yview,
+                           activebackground = "#19A7CE",
+                           bg = "#ffffff",
+                           borderwidth = 50,
+                           elementborderwidth = 50,
+                           highlightbackground = "#ffffff",
+                           highlightcolor = "#19A7CE",
+                           troughcolor = "#ffffff",
+                           width = 12,
+                           takefocus = 1)
+ 
+# Calling pack method w.r.to vertical
+# scrollbar
+verscrlbar.grid(row = 1, column = 1, sticky = 'ns')
+ 
+# Configuring treeview
+dirTreeview.configure(yscrollcommand = verscrlbar.set)
 
 window.mainloop()
