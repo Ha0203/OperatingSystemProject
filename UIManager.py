@@ -12,6 +12,13 @@ diskPartitionsLength = 0
 driveButtonList = []
 buttonList = []
 
+def SelectedButtonFill(idx):
+    global buttonList
+    for i in buttonList:
+        i["bg"] = "#ffffff"
+    
+    buttonList[idx]["bg"] = "#19A7CE"
+
 def InformationHide():
     nameI["text"] = ""
     attributeI["text"] = ""
@@ -57,8 +64,9 @@ def TreeDel():
     for c in dirTreeview.get_children():
         dirTreeview.delete(c)
 
-def FATBuild(partition):
+def FATBuild(partition, idx):
     #Adding item to directory tree
+    global currentPartition
     InformationHide()
     TreeDel()
     count = 0
@@ -73,13 +81,12 @@ def FATBuild(partition):
             dirTreeview.move(item["ID"], item["Parent"], count)
             count += 1
 
-    # select1["bg"] = "#19A7CE"
-    # select2["bg1"] = "#ffffff"
-    global currentPartition 
     currentPartition = partition
+    SelectedButtonFill(idx)
             
-def NTFSBuild(partition):
+def NTFSBuild(partition, idx):
     #Adding item to directory tree
+    global currentPartition 
     InformationHide()
     TreeDel()
     for item in partition["Hierarchy"]:
@@ -91,10 +98,8 @@ def NTFSBuild(partition):
             dirTreeview.move(item["ID"], item["Parent"], count)
             count += 1
 
-    # select2["bg"] = "#19A7CE"
-    # select1["bg"] = "#ffffff"
-    global currentPartition 
     currentPartition = partition
+    SelectedButtonFill(idx)
 
 # GUI window
 window = Tk()
@@ -160,9 +165,9 @@ for drive in USBDrives:
     for partition in diskPartitions:
         currentPartition = partition
         if partition["Format"] == "NTFS":
-            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition: NTFSBuild(partition)))
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: NTFSBuild(partition, buttonIndex)))
         else:
-            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition: FATBuild(partition)))
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: FATBuild(partition, buttonIndex)))
         if buttonIndex % 3 == 0:
             buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = W)
         elif buttonIndex % 3 == 1 and diskPartitionsLength - buttonIndex > 1:
@@ -175,7 +180,7 @@ for drive in USBDrives:
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="black", foreground="white", fieldbackground="black")
+style.configure("Treeview", background="grey", foreground="white", fieldbackground="grey")
 style.map('Treeview', background=[('selected', '#19A7CE')])
 style.map('Treeview', bw=[('selected', 0)])
 dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
