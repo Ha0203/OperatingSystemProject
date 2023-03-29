@@ -264,6 +264,7 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                             "Attributes": GetFAT32FileAttributes("{0:08b}".format(RDET[i + int("0B", 16)])),
                             "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in RDET[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
                             "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
+                            "HighCluster": int.from_bytes(RDET[i + int("14", 16) : i + int("14", 16) + 2], "little"),
                             "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                             "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
                         }
@@ -284,8 +285,8 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
                         }
                         diskHierarchy.append(item)
                         diskHierarchyCount += 1
-                        if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:                
-                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)            
+                        if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:   
+                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, (entry["HighCluster"] << 16) + entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)            
                 else:
                     continue
                 break
@@ -355,6 +356,7 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clust
                             "Attributes": GetFAT32FileAttributes("{0:08b}".format(data[i + int("0B", 16)])),
                             "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in data[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
                             "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in data[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
+                            "HighCluster": int.from_bytes(data[i + int("14", 16) : i + int("14", 16) + 2], "little"),
                             "ClusterBegin": int.from_bytes(data[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
                             "Size": int.from_bytes(data[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
                         }
@@ -375,7 +377,7 @@ def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clust
                         diskHierarchy.append(item)
                         diskHierarchyCount += 1
                         if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
-                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)
+                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, (entry["HighCluster"] << 16) + entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)
                 else:
                     continue
                 break
