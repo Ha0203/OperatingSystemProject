@@ -217,147 +217,171 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
             "FATType": bootSector[int("52", 16) : int("52", 16) + 8],
         }
 
-        RDETSectorBegin = LBAbegin + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"]
-        drive.seek(RDETSectorBegin * sectorBytes)
+        clustersChain = ReadFAT32Table(driveName, sectorBytes, LBAbegin + bootSectorInfo["SectorsBeforeFAT"], bootSectorInfo["FATSectors"])
+
+        dataSectorBegin = LBAbegin + bootSectorInfo["SectorsBeforeFAT"] + bootSectorInfo["FATTables"] * bootSectorInfo["FATSectors"]
         entryQueue = LifoQueue()
+        cluster = bootSectorInfo["RDETClusterBegin"]
 
-        # while True:  
-        for sec in range(0, bootSectorInfo["ClusterSectors"]):       
-            RDET = drive.read(sectorBytes)            
+        while True:  
+            drive.seek((dataSectorBegin + (cluster - 2) * bootSectorInfo["ClusterSectors"]) * sectorBytes)
+            for sec in range(0, bootSectorInfo["ClusterSectors"]):       
+                RDET = drive.read(sectorBytes)            
 
-            # Entry size is 32B
-            for i in range(0, sectorBytes, 32):
-                # Break the read while loop
-                if RDET[i] == 0:
-                    break
-                # Skip if deleted
-                if RDET[i] == 229: # 229 = 0xE5
-                    continue            
-                if RDET[i + int("0B", 16)] == 15: # 15 = 0x0F
-                # Sub entry
-                    subEntry = {
-                        "Name1": RDET[i + int("01", 16) : i + int("01", 16) + 10].decode("utf-16"),
-                        "Name2": RDET[i + int("0E", 16) : i + int("0E", 16) + 12].decode("utf-16"),
-                        "Name3": RDET[i + int("1C", 16) : i + int("1C", 16) + 4].decode("utf-16")
-                    }
-                    entryQueue.put(subEntry)
+                # Entry size is 32B
+                for i in range(0, sectorBytes, 32):
+                    # Break the read while loop
+                    if RDET[i] == 0:
+                        break
+                    # Skip if deleted
+                    if RDET[i] == 229: # 229 = 0xE5
+                        continue            
+                    if RDET[i + int("0B", 16)] == 15: # 15 = 0x0F
+                    # Sub entry
+                        subEntry = {
+                            "Name1": RDET[i + int("01", 16) : i + int("01", 16) + 10].decode("utf-16"),
+                            "Name2": RDET[i + int("0E", 16) : i + int("0E", 16) + 12].decode("utf-16"),
+                            "Name3": RDET[i + int("1C", 16) : i + int("1C", 16) + 4].decode("utf-16")
+                        }
+                        
+                        entryQueue.put(subEntry)
+                    else:
+                    # Entry
+                        # Get entry full name
+                        entryName = ""
+                        while not entryQueue.empty():
+                            subEntry = entryQueue.get()
+                            for j in range(1, 4):
+                                entryName += subEntry["Name" + str(j)]
+                        removePos = entryName.find("\x00")
+                        if removePos > 0:
+                            entryName = entryName[:entryName.find("\x00")]
+
+                        entry = {
+                            "Name": entryName,
+                            "PrimaryName": RDET[i : i + 8].decode("latin-1"),
+                            "ExtendedName": RDET[i + int("08", 16) : i + int("08", 16) + 3].decode("latin-1"),
+                            "Attributes": GetFAT32FileAttributes("{0:08b}".format(RDET[i + int("0B", 16)])),
+                            "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in RDET[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
+                            "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
+                            "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
+                            "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
+                        }
+
+                        if entry["Name"] == "":
+                            if entry["ExtendedName"].rstrip() != "":
+                                entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
+                            else:
+                                entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
+                        item = {
+                            "Parent": -1,
+                            "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
+                            "Name": entry["Name"],
+                            "Attributes": entry["Attributes"],
+                            "TimeCreated": entry["TimeCreated"],
+                            "DateCreated": entry["DateCreated"],
+                            "Size": entry["Size"],
+                        }
+                        diskHierarchy.append(item)
+                        diskHierarchyCount += 1
+                        if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:                
+                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)            
                 else:
-                # Entry
-                    # Get entry full name
-                    entryName = ""
-                    while not entryQueue.empty():
-                        subEntry = entryQueue.get()
-                        for j in range(1, 4):
-                            entryName += subEntry["Name" + str(j)]
-                    removePos = entryName.find("\x00")
-                    if removePos > 0:
-                        entryName = entryName[:entryName.find("\x00")]
-
-                    entry = {
-                        "Name": entryName,
-                        "PrimaryName": RDET[i : i + 8].decode("latin-1"),
-                        "ExtendedName": RDET[i + int("08", 16) : i + int("08", 16) + 3].decode("latin-1"),
-                        "Attributes": GetFAT32FileAttributes("{0:08b}".format(RDET[i + int("0B", 16)])),
-                        "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in RDET[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
-                        "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in RDET[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
-                        "ClusterBegin": int.from_bytes(RDET[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
-                        "Size": int.from_bytes(RDET[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
-                    }                  
-                    if entry["Name"] == "":
-                        if entry["ExtendedName"].rstrip() != "":
-                            entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
-                        else:
-                            entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
-                    item = {
-                        "Parent": -1,
-                        "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
-                        "Name": entry["Name"],
-                        "Attributes": entry["Attributes"],
-                        "TimeCreated": entry["TimeCreated"],
-                        "DateCreated": entry["DateCreated"],
-                        "Size": entry["Size"],
-                    }
-                    diskHierarchy.append(item)
-                    diskHierarchyCount += 1
-                    if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:                
-                        diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)            
-            else:
-                continue
-            break
+                    continue
+                break
+            cluster = clustersChain[cluster]
+            if cluster == int(0xFFFFFFFF) or cluster == int(0x0FFFFFF8) or cluster == int(0x0FFFFFFF):
+                break
 
     return diskHierarchy
 
-# Read FAT32 Data
-def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, clusterBegin, diskHierarchy, parent, diskHierarchyCount):
-    sectorBegin = RDETSectorBegin + (clusterBegin - bootSectorInfo["RDETClusterBegin"]) * bootSectorInfo["ClusterSectors"]
-    
+# Read FAT32 FAT Table
+def ReadFAT32Table(driveName, sectorBytes, FATBegin, FATSectors):
+    clustersChain = []
     with open(driveName, "rb") as drive:
-        drive.seek(sectorBegin * sectorBytes)     
+        drive.seek(FATBegin * sectorBytes)
+        
+        for i in range(0, FATSectors):
+            FAT = drive.read(sectorBytes)
+            for j in range(0, sectorBytes, 4):
+                nextCluster = int.from_bytes(FAT[j : j + 4], "little")
+                clustersChain.append(nextCluster)
+    
+    return clustersChain
+
+# Read FAT32 Data
+def ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, clusterBegin, diskHierarchy, parent, diskHierarchyCount):   
+    with open(driveName, "rb") as drive:
+        cluster = clusterBegin     
         entryQueue = LifoQueue()       
 
         # Read in a cluster
-        # while True:
-        for sec in range(0, bootSectorInfo["ClusterSectors"]):   
-            data = drive.read(sectorBytes)             
+        while True:
+            drive.seek((dataSectorBegin + (cluster - 2) * bootSectorInfo["ClusterSectors"]) * sectorBytes)
+            for sec in range(0, bootSectorInfo["ClusterSectors"]):   
+                data = drive.read(sectorBytes)             
 
-            for i in range(0, sectorBytes, 32):
-                # Break the read for loop
-                if data[i] == 0:
-                    break
-                # Skip if deleted
-                if data[i] == 229 or data[i] == 46: # 229 = 0xE5
-                    continue  
-                if data[i + int("0B", 16)] == 15: # 15 = 0x0F
-                # Sub entry
-                    subEntry = {
-                        "Name1": data[i + int("01", 16) : i + int("01", 16) + 10].decode("utf-16"),
-                        "Name2": data[i + int("0E", 16) : i + int("0E", 16) + 12].decode("utf-16"),
-                        "Name3": data[i + int("1C", 16) : i + int("1C", 16) + 4].decode("utf-16")
-                    }
-                    entryQueue.put(subEntry)
+                for i in range(0, sectorBytes, 32):
+                    # Break the read for loop
+                    if data[i] == 0:
+                        break
+                    # Skip if deleted
+                    if data[i] == 229 or data[i] == 46: # 229 = 0xE5
+                        continue  
+                    if data[i + int("0B", 16)] == 15: # 15 = 0x0F
+                    # Sub entry
+                        subEntry = {
+                            "Name1": data[i + int("01", 16) : i + int("01", 16) + 10].decode("utf-16"),
+                            "Name2": data[i + int("0E", 16) : i + int("0E", 16) + 12].decode("utf-16"),
+                            "Name3": data[i + int("1C", 16) : i + int("1C", 16) + 4].decode("utf-16")
+                        }
+                        entryQueue.put(subEntry)
+                    else:
+                    # Entry
+                        # Get entry full name
+                        entryName = ""
+                        while not entryQueue.empty():
+                            subEntry = entryQueue.get()
+                            for j in range(1, 4):
+                                entryName += subEntry["Name" + str(j)]
+                        removePos = entryName.find("\x00")
+                        if removePos > 0:
+                            entryName = entryName[:entryName.find("\x00")]
+
+                        entry = {
+                            "Name": entryName,
+                            "PrimaryName": data[i : i + 8].decode("latin-1"),
+                            "ExtendedName": data[i + int("08", 16) : i + int("08", 16) + 3].decode("latin-1"),
+                            "Attributes": GetFAT32FileAttributes("{0:08b}".format(data[i + int("0B", 16)])),
+                            "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in data[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
+                            "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in data[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
+                            "ClusterBegin": int.from_bytes(data[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
+                            "Size": int.from_bytes(data[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
+                        }
+                        if entry["Name"] == "":
+                            if entry["ExtendedName"].rstrip() != "":
+                                entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
+                            else:
+                                entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
+                        item = {
+                            "Parent": parent,
+                            "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
+                            "Name": entry["Name"],
+                            "Attributes": entry["Attributes"],
+                            "TimeCreated": entry["TimeCreated"],
+                            "DateCreated": entry["DateCreated"],
+                            "Size": entry["Size"],
+                        }
+                        diskHierarchy.append(item)
+                        diskHierarchyCount += 1
+                        if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
+                            diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, dataSectorBegin, clustersChain, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)
                 else:
-                # Entry
-                    # Get entry full name
-                    entryName = ""
-                    while not entryQueue.empty():
-                        subEntry = entryQueue.get()
-                        for j in range(1, 4):
-                            entryName += subEntry["Name" + str(j)]
-                    removePos = entryName.find("\x00")
-                    if removePos > 0:
-                        entryName = entryName[:entryName.find("\x00")]
-
-                    entry = {
-                        "Name": entryName,
-                        "PrimaryName": data[i : i + 8].decode("latin-1"),
-                        "ExtendedName": data[i + int("08", 16) : i + int("08", 16) + 3].decode("latin-1"),
-                        "Attributes": GetFAT32FileAttributes("{0:08b}".format(data[i + int("0B", 16)])),
-                        "TimeCreated": GetFAT32FileTimeCreated("".join(format(byte, '08b') for byte in data[i + int("0D", 16) : i + int("0D", 16) + 3][::-1])),
-                        "DateCreated": GetFAT32FileDateCreated("".join(format(byte, '08b') for byte in data[i + int("10", 16) : i + int("10", 16) + 2][::-1])),
-                        "ClusterBegin": int.from_bytes(data[i + int("1A", 16) : i + int("1A", 16) + 2], "little"),
-                        "Size": int.from_bytes(data[i + int("1C", 16) : i + int("1C", 16) + 4], "little")
-                    }
-                    if entry["Name"] == "":
-                        if entry["ExtendedName"].rstrip() != "":
-                            entry["Name"] = (entry["PrimaryName"].rstrip() + "." + entry["ExtendedName"]).lower()
-                        else:
-                            entry["Name"] = (entry["PrimaryName"].rstrip() + entry["ExtendedName"]).lower()
-                    item = {
-                        "Parent": parent,
-                        "Type": "Folder" if "Directory" in entry["Attributes"] else "File",
-                        "Name": entry["Name"],
-                        "Attributes": entry["Attributes"],
-                        "TimeCreated": entry["TimeCreated"],
-                        "DateCreated": entry["DateCreated"],
-                        "Size": entry["Size"],
-                    }
-                    diskHierarchy.append(item)
-                    diskHierarchyCount += 1
-                    if "Directory" in entry["Attributes"] and not "Archive" in entry["Attributes"]:
-                        diskHierarchyCount = ReadFAT32Data(driveName, sectorBytes, bootSectorInfo, RDETSectorBegin, entry["ClusterBegin"], diskHierarchy, diskHierarchyCount, diskHierarchyCount)
-            else:
-                continue
-            break
+                    continue
+                break
+            cluster = clustersChain[cluster]
+            if cluster == int(0xFFFFFFFF) or cluster == int(0x0FFFFFF8) or cluster == int(0x0FFFFFFF):
+                break
 
     return diskHierarchyCount
 
