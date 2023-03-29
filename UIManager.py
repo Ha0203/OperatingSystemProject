@@ -46,7 +46,7 @@ def InformationDisplay(e):
         },
         "Size": 0
     }
-    print(currentPartition["Format"])
+
     for i in currentPartition["Hierarchy"]:
         if i["Name"] == selected["text"]:
             item = i
