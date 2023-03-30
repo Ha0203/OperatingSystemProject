@@ -200,7 +200,7 @@ sizeI.grid(row = 6, column = 1, sticky = NSEW, pady = 5)
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="#d4e0ff", foreground="white", fieldbackground="#d4e0ff")
+style.configure("Treeview", background="#d4e0ff", foreground="black", fieldbackground="#d4e0ff")
 style.map('Treeview', background=[('selected', '#19A7CE')])
 style.map('Treeview', bw=[('selected', 0)])
 dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
