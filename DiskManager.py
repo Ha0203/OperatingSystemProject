@@ -130,7 +130,7 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
             if(checktype != 4294967295): #Attribute End 0xFFFF
                 AttributeHeaderInfo={
                     "Type": int.from_bytes(MFTEntry[int("00", 16) + i : int("00",16) + 4 + i], "little"),
-                    "Size": int.from_bytes(MFTEntry[int("04", 16) + i : int("04",16) + 4 + i], "little"),
+                    "Size": int.from_bytes(MFTEntry[int("04", 16) + i : int("04",16) + 2 + i], "little"),
                     "IsNonRes": MFTEntry[int("08", 16) + i],
                     "SizeContent": int.from_bytes(MFTEntry[int("10", 16) + i : int("10",16) + 4 + i], "little"),
                     "PosContent": int.from_bytes(MFTEntry[int("14", 16) + i : int("14",16) + 2 + i], "little")
@@ -170,7 +170,6 @@ def ReadNTFSPartition(driveName, sectorBytes, LBAbegin, drive):
         item["Size"] = filesize
         
         diskHierarchy.append(item)
-        
     
         if MFTEntryHeaderInfo["ID"] == 11:
             n += 13 * volumeBootRecordInfo["BytePerEntryMFT"] #Skip to $Quota entry

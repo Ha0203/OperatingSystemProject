@@ -133,10 +133,17 @@ itemList.grid(row = 0, column = 0, sticky = NW)
 buttonRow = 0
 buttonIndex = 0
 buttonWidth = 55
+diskPartitions = []
+diskPartitionsLength = 0
 for drive in USBDrives:
-    diskPartitions = DiskManager.ReadPhysicalDrive(drive.name, drive.BytesPerSector)
-    diskPartitionsLength = len(diskPartitions)
-    for partition in diskPartitions:
+    partitions = DiskManager.ReadPhysicalDrive(drive.name, drive.BytesPerSector)
+    diskPartitions.append(partitions)
+    
+for partitions in diskPartitions:
+    diskPartitionsLength += len(partitions)
+    
+for partitions in diskPartitions:
+    for partition in partitions:
         currentPartition = partition
         if partition["Format"] == "NTFS":
             buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) > 3 or (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"] + " " + str(buttonIndex + 1), bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: NTFSBuild(partition, buttonIndex)))
@@ -215,7 +222,7 @@ verscrlbar = Scrollbar(itemList,
  
 # Calling pack method w.r.to vertical
 # scrollbar
-verscrlbar.grid(row = 1, column = 1, sticky = 'ns')
+verscrlbar.grid(row = buttonRow, column = 1, sticky = 'ns')
  
 # Configuring treeview
 dirTreeview.configure(yscrollcommand = verscrlbar.set)
