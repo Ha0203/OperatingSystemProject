@@ -56,10 +56,6 @@ def ReadPhysicalDrive(driveName, sectorBytes):
                     "Format": "FAT32",
                     "Hierarchy": FAT32Hierarchy
                 }
-                
-                for item in reversed(partition["Hierarchy"]):
-                    if item["Parent"] >= 0:
-                        partition["Hierarchy"][item["Parent"]]["Size"] += item["Size"]
                     
 
                 partitions.append(partition)
@@ -292,6 +288,10 @@ def ReadFAT32Partition(driveName, sectorBytes, LBAbegin):
             cluster = clustersChain[cluster]
             if cluster == int(0xFFFFFFFF) or cluster == int(0x0FFFFFF8) or cluster == int(0x0FFFFFFF):
                 break
+    
+    for item in reversed(diskHierarchy):
+        if item["Parent"] >= 0:
+            diskHierarchy[item["Parent"]]["Size"] += item["Size"]
 
     return diskHierarchy
 
