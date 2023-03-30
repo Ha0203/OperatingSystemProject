@@ -129,11 +129,35 @@ content.grid(row = 1, column = 0, sticky = NW)
 itemList = Canvas(content, bg="#ffffff", height=550, width=400)
 itemList.grid(row = 0, column = 0, sticky = NW)
 
+#Button Choice
+buttonRow = 0
+buttonIndex = 0
+buttonWidth = 55
+for drive in USBDrives:
+    diskPartitions = DiskManager.ReadPhysicalDrive(drive.name, drive.BytesPerSector)
+    diskPartitionsLength = len(diskPartitions)
+    for partition in diskPartitions:
+        currentPartition = partition
+        if partition["Format"] == "NTFS":
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) > 3 or (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"] + " " + str(buttonIndex + 1), bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: NTFSBuild(partition, buttonIndex)))
+        else:
+            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) > 3 or (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"] + " " + str(buttonIndex + 1), bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: FATBuild(partition, buttonIndex)))
+        if buttonIndex % 3 == 0:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = W)
+        elif buttonIndex % 3 == 1 and diskPartitionsLength - buttonIndex > 1:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0)
+        else:
+            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = E)
+            buttonRow += 1
+        buttonIndex += 1
+if len(buttonList) % 3 == 1:
+    buttonRow += 1
+
 # Treeview
 dirTreeview = ttk.Treeview(itemList, height=24, show = "tree")
 dirTreeview.column("#0", width = 390)
 dirTreeview.heading('#0', text='FAT32', anchor=W)
-dirTreeview.grid(row = 1, column = 0)
+dirTreeview.grid(row = buttonRow, column = 0)
 
 Cont2 = Frame(content, bg="#ffffff", height=550, width=450)
 Cont2.grid(row = 0, column = 1, sticky = NSEW)
@@ -165,28 +189,6 @@ dateCL.grid(row = 5, column = 0, sticky = W, pady = 5)
 dateCI.grid(row = 5, column = 1, sticky = NSEW, pady = 5)
 sizeL.grid(row = 6, column = 0, sticky = W, pady = 5)
 sizeI.grid(row = 6, column = 1, sticky = NSEW, pady = 5)
-
-#Button Choice
-buttonRow = 0
-buttonIndex = 0
-buttonWidth = 55
-for drive in USBDrives:
-    diskPartitions = DiskManager.ReadPhysicalDrive(drive.name, drive.BytesPerSector)
-    diskPartitionsLength = len(diskPartitions)
-    for partition in diskPartitions:
-        currentPartition = partition
-        if partition["Format"] == "NTFS":
-            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: NTFSBuild(partition, buttonIndex)))
-        else:
-            buttonList.append(Button(itemList, width = int(buttonWidth / 3) if (diskPartitionsLength - buttonRow * 3) % 3 == 0 else int(buttonWidth / 2) if (diskPartitionsLength - buttonRow * 3) % 3 == 2 else buttonWidth, text = partition["Format"], bg = "#ffffff", relief = SOLID, borderwidth = 1, command = lambda partition = partition, buttonIndex = buttonIndex: FATBuild(partition, buttonIndex)))
-        if buttonIndex % 3 == 0:
-            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = W)
-        elif buttonIndex % 3 == 1 and diskPartitionsLength - buttonIndex > 1:
-            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = N)
-        else:
-            buttonList[buttonIndex].grid(row = buttonRow, column = 0, sticky = E)
-            buttonRow += 1
-        buttonIndex += 1
 
 # Style
 style = ttk.Style()
