@@ -63,7 +63,8 @@ def InformationDisplay(e):
         end += 50
     if end > len(item["Name"]) and limit < 5:
         nameI["text"] += item["Name"][i :] + "\n"
-        
+
+    #nameI["text"] = item["Name"]
     attributeI["text"] = item["Attributes"]
     temp = item["TimeCreated"]
     timeCI["text"] = str(temp["Hour"]) + ":" + str(temp["Minute"]) + ":" + str(temp["Second"])
@@ -176,7 +177,7 @@ blank = Label(Cont2, background = "#ffffff", width = 60, height = 0)
 blank.grid(row = 0, column = 0 , sticky = NSEW)
 
 nameL = Label(itemInfo, text = "Name:", bg = "#ffffff")
-nameI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT, text = "cc")
+nameI = Label(itemInfo, bg = "#ffffff", anchor = SW, justify = LEFT)
 attributeL = Label(itemInfo, text = "Attributes:", bg = "#ffffff")
 attributeI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 timeCL = Label(itemInfo, text = "Time Created:", bg = "#ffffff")
@@ -186,7 +187,7 @@ dateCI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 sizeL = Label(itemInfo, text = "Size:", bg = "#ffffff")
 sizeI = Label(itemInfo, bg = "#ffffff", anchor = "w", justify = LEFT)
 
-nameL.grid(row = 0, column = 0, sticky = W, pady = 5)
+nameL.grid(row = 0, column = 0, sticky = NW, pady = 5)
 nameI.grid(row = 0, column = 1, sticky = W, pady = 5)
 attributeL.grid(row = 3, column = 0, sticky = W, pady = 5)
 attributeI.grid(row = 3, column = 1, sticky = W, pady = 5)
@@ -200,7 +201,7 @@ sizeI.grid(row = 6, column = 1, sticky = W, pady = 5)
 # Style
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("Treeview", background="#06237a", foreground="black", fieldbackground="#06237a")
+style.configure("Treeview", background="d4e0ff", foreground="black", fieldbackground="#d4e0ff")
 style.map('Treeview', background=[('selected', '#19A7CE')])
 style.map('Treeview', bw=[('selected', 0)])
 dirTreeview.bind('<ButtonRelease-1>', InformationDisplay)
